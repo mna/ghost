@@ -20,6 +20,7 @@ func Run(opts *Options) {
 	loadTemplates(opts)
 	mux := buildRoutes(opts)
 	http.Handle("/", mux)
+	http.Handle("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir(opts.PubDir))))
 	err := http.ListenAndServe(":12345", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe:", err)
