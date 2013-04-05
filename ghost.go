@@ -17,10 +17,11 @@ var (
 )
 
 func Run(opts *Options) {
+	opts.fillWithDefault()
 	loadTemplates(opts)
 	mux := buildRoutes(opts)
+	mux.Get("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir(opts.PubDir))))
 	http.Handle("/", mux)
-	http.Handle("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir(opts.PubDir))))
 	err := http.ListenAndServe(":12345", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe:", err)
@@ -30,17 +31,43 @@ func Run(opts *Options) {
 func buildRoutes(opts *Options) *pat.PatternServeMux {
 	mux := pat.New()
 	for k, tpl := range pageRoutes {
-		mux.Get(fmt.Sprintf("/%s", k), http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			err := tpl.Execute(w, nil)
-			if err != nil {
-				log.Fatal("buildRoutes:", err)
-			}
-		}))
+		func(nm string, t *template.Template) {
+			mux.Get(fmt.Sprintf("/%s", nm), http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				err := t.Execute(w, nil)
+				if err != nil {
+					log.Fatal("buildRoutes:", err)
+				}
+			}))
+		}(k, tpl)
 	}
 
 	return mux
 }
 
+/*
+The templates are loaded from a directory specified by the Options. It is possible
+with amber to inherit or include portions of the page from another amber file. These
+incomplete but reusable amber files should *not* be in the same directory as the 
+"real" pages, because then Ghost will generate useless templates for them.
+
+The recommended directory hierarchy is as follows (master and header are examples
+of reusable, non-pages amber files, * denotes a directory, - denotes a file):
+* ./
+  * tmpl
+    * pages
+      * users
+        * id
+          - user.amber
+        - users.amber
+      - default.amber
+    - master.amber
+    - header.amber
+  * public
+    - site.js
+    - styles.css
+    - logo.png
+    - favicon.ico
+*/
 func loadTemplates(opts *Options) {
 	// TODO : Recursive...
 
