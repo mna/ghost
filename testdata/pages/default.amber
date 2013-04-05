@@ -1,0 +1,13 @@
+extends ../master
+
+block title
+  | Some sub page!
+
+block append meta
+  // This will be added after the description meta tag. It is also possible
+  // to prepend someting to an existing block
+  meta[name="keywords"][content="foo bar"]
+
+block content
+  div#main
+    p Some content here

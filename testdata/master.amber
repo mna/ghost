@@ -1,0 +1,11 @@
+!!! 5
+html
+  head
+    block meta
+      meta[name="description"][content="This is a great website"]
+
+    title
+      block title
+        | Default title
+  body
+    block content
