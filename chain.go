@@ -11,22 +11,37 @@ type ChainableHandler interface {
 	Chain(http.Handler) ChainableHandler
 }
 
+// Default implementation of a simple ChainableHandler
 type chainHandler struct {
 	http.Handler
 }
 
+// Implementation of the ChainableHandler interface, calls the chained handler
+// after the current one.
 func (this *chainHandler) Chain(h http.Handler) ChainableHandler {
 	return &chainHandler{
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Add the chained handler AFTER the call to this handler
+			// Add the chained handler after the call to this handler
 			this.ServeHTTP(w, r)
 			h.ServeHTTP(w, r)
 		}),
 	}
 }
 
+// Convert a standard http handler to a chainable handler interface.
 func NewChainableHandler(h http.Handler) ChainableHandler {
 	return &chainHandler{
 		h,
+	}
+}
+
+// Helper function to chain multiple handlers in a single call.
+func ChainHandlers(h ...http.Handler) ChainableHandler {
+	return &chainHandler{
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for _, v := range h {
+				v.ServeHTTP(w, r)
+			}
+		}),
 	}
 }

@@ -34,7 +34,20 @@ type GzipHandler struct {
 	H http.Handler
 }
 
+// Create a new Gzip handler.
+func NewGzipHandler(wrappedHandler http.Handler) *GzipHandler {
+	return &GzipHandler{wrappedHandler}
+}
+
+// The http.Handler implementation for the GzipHandler.
 func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Self-aware
+	if _, ok := w.(*gzipResponseWriter); ok {
+		// The ResponseWriter is already a gzip writer, ignore
+		return
+	}
+
+	// Get the header map once
 	hdr := w.Header()
 
 	// Manage the Vary header field

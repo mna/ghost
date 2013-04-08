@@ -25,3 +25,49 @@ func TestChaining(t *testing.T) {
 		t.Errorf("expected 'abc', got %s", buf.String())
 	}
 }
+
+func TestChainingWithHelperFunc(t *testing.T) {
+	var buf bytes.Buffer
+
+	a := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf.WriteRune('a')
+	})
+	b := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf.WriteRune('b')
+	})
+	c := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf.WriteRune('c')
+	})
+	d := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf.WriteRune('d')
+	})
+	f := ChainHandlers(a, b, c, d)
+	f.ServeHTTP(nil, nil)
+
+	if buf.String() != "abcd" {
+		t.Errorf("expected 'abcd', got %s", buf.String())
+	}
+}
+
+func TestChainingMixed(t *testing.T) {
+	var buf bytes.Buffer
+
+	a := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf.WriteRune('a')
+	})
+	b := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf.WriteRune('b')
+	})
+	c := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf.WriteRune('c')
+	})
+	d := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf.WriteRune('d')
+	})
+	f := NewChainableHandler(a).Chain(ChainHandlers(b, c)).Chain(d)
+	f.ServeHTTP(nil, nil)
+
+	if buf.String() != "abcd" {
+		t.Errorf("expected 'abcd', got %s", buf.String())
+	}
+}
