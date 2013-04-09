@@ -8,6 +8,7 @@ import (
 // Handles panics and responds with a 500 error message.
 type PanicHandler struct {
 	h http.Handler
+	// TODO : Add a custom message to override real error message if in production?
 }
 
 // Create a new panic handler around a handler, making it a "protected" handler

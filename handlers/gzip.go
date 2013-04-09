@@ -62,8 +62,8 @@ func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		hdr.Add("Vary", "Accept-Encoding")
 	}
 
-	// Do nothing on a HEAD request or if no accept-encoding is specified
-	acc, ok := hdr["Accept-Encoding"]
+	// Do nothing on a HEAD request or if no accept-encoding is specified on the request
+	acc, ok := r.Header["Accept-Encoding"]
 	if r.Method == "HEAD" || !ok {
 		this.H.ServeHTTP(w, r)
 		return
@@ -72,6 +72,7 @@ func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check if gzip is an accepted response encoding
 	ok = false
 	for _, v := range acc {
+		// TODO : May not work in usual cases, one value, but comma-separated?
 		trimmed := strings.ToLower(strings.Trim(v, " "))
 		if trimmed == "*" || trimmed == "gzip" {
 			ok = true

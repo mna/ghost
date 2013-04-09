@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"testing"
 )
@@ -51,11 +50,6 @@ func TestContext(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	buf, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		panic(err)
-	}
-	res.Body.Close()
-	assertTrue(res.StatusCode == http.StatusOK, fmt.Sprintf("expected status code to be 200, got %d", res.StatusCode), t)
-	assertTrue(string(buf) == body, fmt.Sprintf("expected body to be '%s', got '%s'", body, buf), t)
+	assertStatus(http.StatusOK, res.StatusCode, t)
+	assertBody([]byte(body), res, t)
 }

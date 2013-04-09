@@ -18,5 +18,20 @@ func TestPanic(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	assertTrue(res.StatusCode == http.StatusInternalServerError, fmt.Sprintf("expected status code to be 500, got %d", res.StatusCode), t)
+	assertStatus(http.StatusInternalServerError, res.StatusCode, t)
+}
+
+func TestNoPanic(t *testing.T) {
+	path := fmt.Sprintf("http://localhost%s/nopanic", svrAddr)
+	h := NewPanicHandler(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+
+		}))
+	startServer(h, "/nopanic")
+
+	res, err := http.Get(path)
+	if err != nil {
+		panic(err)
+	}
+	assertStatus(http.StatusOK, res.StatusCode, t)
 }
