@@ -1,24 +1,20 @@
 package handlers
 
 import (
-	"fmt"
-	"net"
 	"net/http"
 	"testing"
 )
 
 const svrAddr = ":8080"
 
-var clientAddr = fmt.Sprintf("http://localhost%s/", svrAddr)
+var started = false
 
-func startServer(h http.Handler, t *testing.T) net.Listener {
-	l, err := net.Listen("tcp", svrAddr)
-	if err != nil {
-		panic(err)
+func startServer(h http.Handler, path string) {
+	http.Handle(path, h)
+	if !started {
+		go http.ListenAndServe(svrAddr, nil)
+		started = true
 	}
-	go http.Serve(l, h)
-
-	return l
 }
 
 func assertTrue(cond bool, msg string, t *testing.T) {
