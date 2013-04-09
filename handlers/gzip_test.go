@@ -1,22 +1,16 @@
 package handlers
 
 import (
-	"bytes"
-	"compress/gzip"
 	"fmt"
 	"net/http"
 	"testing"
 )
 
 func TestGzipped(t *testing.T) {
-	// TODO : Validate result. Maybe response's body is already unzipped
 	path := fmt.Sprintf("http://localhost%s/gzipped", svrAddr)
 	body := "This is the body"
-	gbody := bytes.NewBuffer(nil)
-	gw := gzip.NewWriter(gbody)
-	if _, err := gw.Write([]byte(body)); err != nil {
-		panic(err)
-	}
+	headers := []string{"gzip", "*", "gzip, deflate, sdch"}
+
 	h := NewGzipHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			_, err := w.Write([]byte(body))
@@ -26,15 +20,45 @@ func TestGzipped(t *testing.T) {
 		}))
 	startServer(h, "/gzipped")
 
+	for _, hdr := range headers {
+		t.Logf("running with Accept-Encoding header %s", hdr)
+		req, err := http.NewRequest("GET", path, nil)
+		if err != nil {
+			panic(err)
+		}
+		req.Header.Set("Accept-Encoding", hdr)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			panic(err)
+		}
+		assertStatus(http.StatusOK, res.StatusCode, t)
+		assertHeader("Content-Encoding", "gzip", res, t)
+		assertGzippedBody([]byte(body), res, t)
+	}
+}
+
+func TestNoGzip(t *testing.T) {
+	path := fmt.Sprintf("http://localhost%s/nogzip", svrAddr)
+	body := "This is the body"
+
+	h := NewGzipHandler(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, err := w.Write([]byte(body))
+			if err != nil {
+				panic(err)
+			}
+		}))
+	startServer(h, "/nogzip")
+
 	req, err := http.NewRequest("GET", path, nil)
 	if err != nil {
 		panic(err)
 	}
-	req.Header.Set("Accept-Encoding", "*")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		panic(err)
 	}
 	assertStatus(http.StatusOK, res.StatusCode, t)
-	assertBody(gbody.Bytes(), res, t)
+	assertHeader("Content-Encoding", "", res, t)
+	assertBody([]byte(body), res, t)
 }

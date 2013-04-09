@@ -72,9 +72,8 @@ func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check if gzip is an accepted response encoding
 	ok = false
 	for _, v := range acc {
-		// TODO : May not work in usual cases, one value, but comma-separated?
 		trimmed := strings.ToLower(strings.Trim(v, " "))
-		if trimmed == "*" || trimmed == "gzip" {
+		if trimmed == "*" || strings.Contains(trimmed, "gzip") {
 			ok = true
 			break
 		}
@@ -87,6 +86,8 @@ func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Yes, prepare a gzip response container
 	hdr.Set("Content-Encoding", "gzip")
+	// TODO : Does not work in browser, returns application/x-gzip? But usually, the content-type
+	// should be explicitly set somewhere down the path of chained handlers...
 	hdr.Del("Content-Length")
 	gz := gzip.NewWriter(w)
 	defer gz.Close()
