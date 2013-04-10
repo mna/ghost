@@ -7,7 +7,7 @@ import (
 
 // Handles panics and responds with a 500 error message.
 type PanicHandler struct {
-	h http.Handler
+	H http.Handler
 	// TODO : Add a custom message to override real error message if in production?
 }
 
@@ -26,5 +26,5 @@ func (this *PanicHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Call the protected handler
-	this.h.ServeHTTP(w, r)
+	this.H.ServeHTTP(w, r)
 }

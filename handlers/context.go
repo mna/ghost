@@ -13,8 +13,8 @@ type contextResponseWriter struct {
 // The ContextHandler gives a context storage that lives only for the duration of
 // the request, with no locking involved.
 type ContextHandler struct {
-	h       http.Handler
-	initCap int
+	H          http.Handler
+	InitialCap int
 }
 
 // Create a new context handler for the specified wrapped handler, and an initial 
@@ -31,10 +31,10 @@ func (this *ContextHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Create the context-providing ResponseWriter replacement.
 	ctxw := &contextResponseWriter{
 		w,
-		make(map[interface{}]interface{}, this.initCap),
+		make(map[interface{}]interface{}, this.InitialCap),
 	}
 	// Call the wrapped handler with the context-aware writer
-	this.h.ServeHTTP(ctxw, r)
+	this.H.ServeHTTP(ctxw, r)
 }
 
 // Helper function to retrieve the context map from the ResponseWriter interface.
