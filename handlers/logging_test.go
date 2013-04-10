@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestLogging(t *testing.T) {
@@ -16,8 +17,11 @@ func TestLogging(t *testing.T) {
 
 	h := NewLoggingHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-
-		}), nil, "%s!\n", "test")
+			t.Log("in handler")
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(200)
+			w.Write([]byte("body"))
+		}), nil, "%s - [%s] %s %s %s %d %s %s %s %.3f\n", "remote-addr", "date", "method", "url", "http-version", "status", "referrer", "user-agent", "bidon", "response-time")
 	startServer(h, "/logging")
 
 	res, err := http.Get(path)
