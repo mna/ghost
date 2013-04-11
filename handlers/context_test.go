@@ -27,14 +27,14 @@ func TestContext(t *testing.T) {
 		})
 
 	// Create the context handler with a wrapped handler
-	h := NewContextHandler(http.HandlerFunc(
+	h := ContextHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			ctx := GetContext(w)
 			assertTrue(ctx != nil, "expected context to be non-nil", t)
 			assertTrue(len(ctx) == 0, fmt.Sprintf("expected context to be empty, got %d", len(ctx)), t)
 			ctx[key] = val
 			h2.ServeHTTP(w, r)
-		}))
+		}), 2)
 
 	// Start and stop the server
 	startServer(h, "/context")

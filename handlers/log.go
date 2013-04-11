@@ -18,10 +18,11 @@ const (
 	Ltiny    = "_tiny_"
 )
 
-// Token for request and response headers
 var (
+	// Token parser for request and response headers
 	rxHeaders = regexp.MustCompile(`^(req|res)\[([^\]]+)\]$`)
 
+	// Lookup table for predefined formats
 	predefFormats = map[string]struct {
 		fmt  string
 		toks []string
@@ -43,10 +44,6 @@ var (
 
 // Augmented ResponseWriter implementation that captures the status code for the logger.
 type statusResponseWriter struct {
-	// TODO : This solution only works if WriteHeader() is called explicitly.
-	// If Write() is called and then this Write calls WriteHeader, the WriteHeader
-	// of the internal *response struct is called, *not* the overridden method of
-	// this statusResponseWriter struct.
 	http.ResponseWriter
 	code int
 }
@@ -57,55 +54,64 @@ func (this *statusResponseWriter) WriteHeader(code int) {
 	this.ResponseWriter.WriteHeader(code)
 }
 
-// Generic, customizable logging handler.
-type LoggingHandler struct {
-	H            http.Handler
+// Intercept the Write call to save the default status code.
+func (this *statusResponseWriter) Write(data []byte) (int, error) {
+	if this.code == 0 {
+		this.code = http.StatusOK
+	}
+	return this.ResponseWriter.Write(data)
+}
+
+// LogHandler options
+type LogOptions struct {
 	Logger       *log.Logger
 	Format       string
 	Tokens       []string
 	CustomTokens map[string]func(http.ResponseWriter, *http.Request) string
-	Immediate    bool   // Defaults to false
-	DateFormat   string // Defaults to time.RFC3339
+	Immediate    bool
+	DateFormat   string
 }
 
-// Create a new logging handler for the specified wrapped handler and other logging options.
-func NewLoggingHandler(wrappedHandler http.Handler, l *log.Logger, fmt string, tok ...string) *LoggingHandler {
-	return &LoggingHandler{
-		wrappedHandler,
-		l,
-		fmt,
-		tok,
-		make(map[string]func(http.ResponseWriter, *http.Request) string),
-		false,
-		time.RFC3339,
+// Create a new LogOptions struct. The DateFormat defaults to time.RFC3339.
+func NewLogOptions(l *log.Logger, ft string, tok ...string) *LogOptions {
+	return &LogOptions{
+		Logger:       l,
+		Format:       ft,
+		Tokens:       tok,
+		CustomTokens: make(map[string]func(http.ResponseWriter, *http.Request) string),
+		DateFormat:   time.RFC3339,
 	}
 }
 
-// Implement the http.Handler interface.
-func (this *LoggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if _, ok := w.(*statusResponseWriter); ok {
-		// Self-awareness, logging handler already set up
-		this.H.ServeHTTP(w, r)
-		return
-	}
+// Create a log handler for every request it receives.
+func LogHandler(h http.Handler, opts *LogOptions) http.Handler {
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := w.(*statusResponseWriter); ok {
+				// Self-awareness, logging handler already set up
+				h.ServeHTTP(w, r)
+				return
+			}
 
-	// Save the response start time
-	st := time.Now()
-	// Call the wrapped handler, with the augmented ResponseWriter to handle the status code
-	stw := &statusResponseWriter{w, 0}
+			// Save the response start time
+			st := time.Now()
+			// Call the wrapped handler, with the augmented ResponseWriter to handle the status code
+			stw := &statusResponseWriter{w, 0}
 
-	// Log immediately if requested, otherwise on exit
-	if this.Immediate {
-		this.log(w, r, st)
-	} else {
-		defer this.log(stw, r, st)
-	}
-	this.H.ServeHTTP(stw, r)
+			// Log immediately if requested, otherwise on exit
+			if opts.Immediate {
+				logRequest(w, r, st, opts)
+			} else {
+				defer logRequest(stw, r, st, opts)
+			}
+			h.ServeHTTP(stw, r)
+		})
 }
 
 // Check if the specified token is a predefined one, and if so return its current value.
-func (this *LoggingHandler) getPredefinedTokenValue(t string, w http.ResponseWriter,
-	r *http.Request, st time.Time) (interface{}, bool) {
+func getPredefinedTokenValue(t string, w http.ResponseWriter, r *http.Request,
+	st time.Time, opts *LogOptions) (interface{}, bool) {
+
 	switch t {
 	case "http-version":
 		return fmt.Sprintf("%d.%d", r.ProtoMajor, r.ProtoMinor), true
@@ -114,7 +120,7 @@ func (this *LoggingHandler) getPredefinedTokenValue(t string, w http.ResponseWri
 	case "remote-addr":
 		return r.RemoteAddr, true
 	case "date":
-		return time.Now().Format(this.DateFormat), true
+		return time.Now().Format(opts.DateFormat), true
 	case "method":
 		return r.Method, true
 	case "url":
@@ -144,31 +150,33 @@ func (this *LoggingHandler) getPredefinedTokenValue(t string, w http.ResponseWri
 }
 
 // Do the actual logging.
-func (this *LoggingHandler) log(w http.ResponseWriter, r *http.Request, st time.Time) {
-	var fn func(string, ...interface{})
-	var ok bool
-	var format string
-	var toks []string
+func logRequest(w http.ResponseWriter, r *http.Request, st time.Time, opts *LogOptions) {
+	var (
+		fn     func(string, ...interface{})
+		ok     bool
+		format string
+		toks   []string
+	)
 
 	// If no specific logger, use the default one from the log package
-	if this.Logger == nil {
+	if opts.Logger == nil {
 		fn = log.Printf
 	} else {
-		fn = this.Logger.Printf
+		fn = opts.Logger.Printf
 	}
 
 	// If this is a predefined format, use it instead
-	if v, ok := predefFormats[this.Format]; ok {
+	if v, ok := predefFormats[opts.Format]; ok {
 		format = v.fmt
 		toks = v.toks
 	} else {
-		format = this.Format
-		toks = this.Tokens
+		format = opts.Format
+		toks = opts.Tokens
 	}
 	args := make([]interface{}, len(toks))
 	for i, t := range toks {
-		if args[i], ok = this.getPredefinedTokenValue(t, w, r, st); !ok {
-			if f, ok := this.CustomTokens[t]; ok && f != nil {
+		if args[i], ok = getPredefinedTokenValue(t, w, r, st, opts); !ok {
+			if f, ok := opts.CustomTokens[t]; ok && f != nil {
 				args[i] = f(w, r)
 			} else {
 				args[i] = "?"

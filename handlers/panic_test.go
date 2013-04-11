@@ -8,7 +8,7 @@ import (
 
 func TestPanic(t *testing.T) {
 	path := fmt.Sprintf("http://localhost%s/panic", svrAddr)
-	h := NewPanicHandler(http.HandlerFunc(
+	h := PanicHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			panic("test")
 		}))
@@ -23,7 +23,7 @@ func TestPanic(t *testing.T) {
 
 func TestNoPanic(t *testing.T) {
 	path := fmt.Sprintf("http://localhost%s/nopanic", svrAddr)
-	h := NewPanicHandler(http.HandlerFunc(
+	h := PanicHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 
 		}))

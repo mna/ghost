@@ -10,18 +10,9 @@ import (
 	"time"
 )
 
-func TestLogging(t *testing.T) {
-	path := fmt.Sprintf("http://localhost%s/logging", svrAddr)
+func TestLog(t *testing.T) {
 	log.SetFlags(0)
 	now := time.Now()
-
-	h := NewLoggingHandler(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			time.Sleep(100 * time.Millisecond)
-			w.WriteHeader(200)
-			w.Write([]byte("body"))
-		}), nil, "")
-	startServer(h, "/logging")
 
 	formats := map[string]struct {
 		fmt string
@@ -41,7 +32,7 @@ func TestLogging(t *testing.T) {
 		},
 		"url": {
 			"%s",
-			regexp.MustCompile(`^/logging\n$`),
+			regexp.MustCompile(`^/log\d+\n$`),
 		},
 		"http-version": {
 			"%s",
@@ -81,15 +72,15 @@ func TestLogging(t *testing.T) {
 		},
 		"tiny": {
 			Ltiny,
-			regexp.MustCompile(`^GET /logging 200  - 0\.1\d\d s\n$`),
+			regexp.MustCompile(`^GET /log\d+ 200  - 0\.1\d\d s\n$`),
 		},
 		"short": {
 			Lshort,
-			regexp.MustCompile(`^127\.0\.0\.1:\d+ - GET /logging HTTP/1\.1 200  - 0\.1\d\d s\n$`),
+			regexp.MustCompile(`^127\.0\.0\.1:\d+ - GET /log\d+ HTTP/1\.1 200  - 0\.1\d\d s\n$`),
 		},
 		"default": {
 			Ldefault,
-			regexp.MustCompile(`^127\.0\.0\.1:\d+ - - \[\d{4}-\d{2}-\d{2}\] "GET /logging HTTP/1\.1" 200  "http://www\.test\.com" "Go \d+\.\d+ package http"\n$`),
+			regexp.MustCompile(`^127\.0\.0\.1:\d+ - - \[\d{4}-\d{2}-\d{2}\] "GET /log\d+ HTTP/1\.1" 200  "http://www\.test\.com" "Go \d+\.\d+ package http"\n$`),
 		},
 		// TODO : The next test fails, because only headers explicitly set through
 		// ResponseWriter.Header are available (not those written with the actual response)
@@ -98,12 +89,21 @@ func TestLogging(t *testing.T) {
 			regexp.MustCompile(`^text/plain\n$`),
 		},*/
 	}
+	cnt := 0
 	for k, v := range formats {
-		h.Format = v.fmt
-		h.Tokens = []string{k}
-		h.DateFormat = "2006-01-02"
+		cnt++
 		buf := bytes.NewBuffer(nil)
 		log.SetOutput(buf)
+		opts := NewLogOptions(nil, v.fmt, k)
+		opts.DateFormat = "2006-01-02"
+		h := LogHandler(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(100 * time.Millisecond)
+				w.WriteHeader(200)
+				w.Write([]byte("body"))
+			}), opts)
+		path := fmt.Sprintf("http://localhost%s/log%d", svrAddr, cnt)
+		startServer(h, fmt.Sprintf("/log%d", cnt))
 
 		t.Logf("running %s...", k)
 		req, err := http.NewRequest("GET", path, nil)
@@ -121,3 +121,5 @@ func TestLogging(t *testing.T) {
 		assertTrue(v.rx.MatchString(ac), fmt.Sprintf("expected log to match '%s', got '%s'", v.rx.String(), ac), t)
 	}
 }
+
+// TODO : Tests for Immediate = true and CustomTokens

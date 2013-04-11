@@ -30,26 +30,42 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 }
 
 // Gzip compression HTTP handler.
-type GzipHandler struct {
-	H http.Handler
+func GZIPHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := w.(*gzipResponseWriter); ok {
+				// Self-awareness, the ResponseWriter is already a gzip writer, ignore
+				h.ServeHTTP(w, r)
+				return
+			}
+			hdr := w.Header()
+			setVaryHeader(hdr)
+
+			// Do nothing on a HEAD request or if no accept-encoding is specified on the request
+			acc, ok := r.Header["Accept-Encoding"]
+			if r.Method == "HEAD" || !ok {
+				h.ServeHTTP(w, r)
+				return
+			}
+			if !acceptsGzip(acc) {
+				// No gzip support from the client, return uncompressed
+				h.ServeHTTP(w, r)
+				return
+			}
+
+			// Prepare a gzip response container
+			setGzipHeaders(hdr)
+			gz := gzip.NewWriter(w)
+			defer gz.Close()
+			h.ServeHTTP(
+				&gzipResponseWriter{
+					Writer:         gz,
+					ResponseWriter: w,
+				}, r)
+		})
 }
 
-// Create a new Gzip handler.
-func NewGzipHandler(wrappedHandler http.Handler) *GzipHandler {
-	return &GzipHandler{wrappedHandler}
-}
-
-// The http.Handler implementation for the GzipHandler.
-func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if _, ok := w.(*gzipResponseWriter); ok {
-		// Self-awareness, the ResponseWriter is already a gzip writer, ignore
-		this.H.ServeHTTP(w, r)
-		return
-	}
-
-	// Get the header map once
-	hdr := w.Header()
-
+func setVaryHeader(hdr http.Header) {
 	// Manage the Vary header field
 	vary := hdr["Vary"]
 	ok := false
@@ -61,40 +77,20 @@ func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		hdr.Add("Vary", "Accept-Encoding")
 	}
+}
 
-	// Do nothing on a HEAD request or if no accept-encoding is specified on the request
-	acc, ok := r.Header["Accept-Encoding"]
-	if r.Method == "HEAD" || !ok {
-		this.H.ServeHTTP(w, r)
-		return
-	}
-
-	// Check if gzip is an accepted response encoding
-	ok = false
+func acceptsGzip(acc []string) bool {
 	for _, v := range acc {
 		trimmed := strings.ToLower(strings.Trim(v, " "))
 		if trimmed == "*" || strings.Contains(trimmed, "gzip") {
-			ok = true
-			break
+			return true
 		}
 	}
-	if !ok {
-		// No gzip support from the client, return uncompressed
-		this.H.ServeHTTP(w, r)
-		return
-	}
+	return false
+}
 
-	// Yes, prepare a gzip response container
+func setGzipHeaders(hdr http.Header) {
+	// The content-type will be explicitly set somewhere down the path of handlers
 	hdr.Set("Content-Encoding", "gzip")
-	// The content-type should be explicitly set somewhere down the path of handlers
 	hdr.Del("Content-Length")
-	gz := gzip.NewWriter(w)
-	defer gz.Close()
-
-	// Call the chained handler with a gzipped response writer
-	this.H.ServeHTTP(
-		&gzipResponseWriter{
-			Writer:         gz,
-			ResponseWriter: w,
-		}, r)
 }

@@ -11,7 +11,7 @@ func TestGzipped(t *testing.T) {
 	body := "This is the body"
 	headers := []string{"gzip", "*", "gzip, deflate, sdch"}
 
-	h := NewGzipHandler(http.HandlerFunc(
+	h := GZIPHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			_, err := w.Write([]byte(body))
 			if err != nil {
@@ -41,7 +41,7 @@ func TestNoGzip(t *testing.T) {
 	path := fmt.Sprintf("http://localhost%s/nogzip", svrAddr)
 	body := "This is the body"
 
-	h := NewGzipHandler(http.HandlerFunc(
+	h := GZIPHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			_, err := w.Write([]byte(body))
 			if err != nil {
