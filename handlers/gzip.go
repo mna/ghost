@@ -41,9 +41,9 @@ func NewGzipHandler(wrappedHandler http.Handler) *GzipHandler {
 
 // The http.Handler implementation for the GzipHandler.
 func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Self-aware
 	if _, ok := w.(*gzipResponseWriter); ok {
-		// The ResponseWriter is already a gzip writer, ignore
+		// Self-awareness, the ResponseWriter is already a gzip writer, ignore
+		this.H.ServeHTTP(w, r)
 		return
 	}
 
@@ -86,8 +86,7 @@ func (this *GzipHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Yes, prepare a gzip response container
 	hdr.Set("Content-Encoding", "gzip")
-	// TODO : Does not work in browser, returns application/x-gzip? But usually, the content-type
-	// should be explicitly set somewhere down the path of chained handlers...
+	// The content-type should be explicitly set somewhere down the path of handlers
 	hdr.Del("Content-Length")
 	gz := gzip.NewWriter(w)
 	defer gz.Close()

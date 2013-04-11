@@ -34,7 +34,7 @@ func TestContext(t *testing.T) {
 			assertTrue(len(ctx) == 0, fmt.Sprintf("expected context to be empty, got %d", len(ctx)), t)
 			ctx[key] = val
 			h2.ServeHTTP(w, r)
-		}), 2)
+		}))
 
 	// Start and stop the server
 	startServer(h, "/context")

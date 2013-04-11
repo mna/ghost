@@ -19,15 +19,20 @@ type ContextHandler struct {
 
 // Create a new context handler for the specified wrapped handler, and an initial 
 // capacity for the context map.
-func NewContextHandler(wrappedHandler http.Handler, initialCap int) *ContextHandler {
+func NewContextHandler(wrappedHandler http.Handler) *ContextHandler {
 	return &ContextHandler{
-		wrappedHandler,
-		initialCap,
+		H: wrappedHandler,
 	}
 }
 
 // Implementation of the http.Handler interface.
 func (this *ContextHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if _, ok := w.(*contextResponseWriter); ok {
+		// Self-awareness, context handler is already set up
+		this.H.ServeHTTP(w, r)
+		return
+	}
+
 	// Create the context-providing ResponseWriter replacement.
 	ctxw := &contextResponseWriter{
 		w,

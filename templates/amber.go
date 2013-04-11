@@ -5,8 +5,7 @@ import (
 	"github.com/eknkc/amber"
 )
 
-// The template compiler for native Go templates is provided by Ghost. More
-// compilers can be found in ghost/templates.
+// The template compiler for Amber templates.
 type AmberCompiler struct {
 	Options amber.Options
 	c       *amber.Compiler
