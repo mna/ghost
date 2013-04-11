@@ -19,5 +19,6 @@
 // - LogHandler(http.Handler, *LogOptions) : customizable request logger.
 // - PanicHandler(http.Handler) : handles panics gracefully so that the client 
 //     receives a status code 500.
+// - StaticFileHandler(string) : serve the contents of a specific file.
 //
 package handlers
