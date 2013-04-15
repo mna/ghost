@@ -62,6 +62,11 @@ func (this *statusResponseWriter) Write(data []byte) (int, error) {
 	return this.ResponseWriter.Write(data)
 }
 
+// Implement the WrapWriter interface.
+func (this *statusResponseWriter) WrappedWriter() http.ResponseWriter {
+	return this.ResponseWriter
+}
+
 // LogHandler options
 type LogOptions struct {
 	Logger       *log.Logger
@@ -100,7 +105,7 @@ func LogHandler(h http.Handler, opts *LogOptions) http.Handler {
 
 			// Log immediately if requested, otherwise on exit
 			if opts.Immediate {
-				logRequest(w, r, st, opts)
+				logRequest(stw, r, st, opts)
 			} else {
 				defer logRequest(stw, r, st, opts)
 			}
@@ -109,7 +114,7 @@ func LogHandler(h http.Handler, opts *LogOptions) http.Handler {
 }
 
 // Check if the specified token is a predefined one, and if so return its current value.
-func getPredefinedTokenValue(t string, w http.ResponseWriter, r *http.Request,
+func getPredefinedTokenValue(t string, w *statusResponseWriter, r *http.Request,
 	st time.Time, opts *LogOptions) (interface{}, bool) {
 
 	switch t {
@@ -130,9 +135,7 @@ func getPredefinedTokenValue(t string, w http.ResponseWriter, r *http.Request,
 	case "user-agent":
 		return r.UserAgent(), true
 	case "status":
-		if stw, ok := w.(*statusResponseWriter); ok && stw.code > 0 {
-			return stw.code, true
-		}
+		return w.code, true
 	}
 
 	// Handle special cases for header
@@ -150,7 +153,7 @@ func getPredefinedTokenValue(t string, w http.ResponseWriter, r *http.Request,
 }
 
 // Do the actual logging.
-func logRequest(w http.ResponseWriter, r *http.Request, st time.Time, opts *LogOptions) {
+func logRequest(w *statusResponseWriter, r *http.Request, st time.Time, opts *LogOptions) {
 	var (
 		fn     func(string, ...interface{})
 		ok     bool

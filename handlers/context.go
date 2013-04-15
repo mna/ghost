@@ -10,12 +10,17 @@ type contextResponseWriter struct {
 	m map[interface{}]interface{}
 }
 
+// Implement the WrapWriter interface.
+func (this *contextResponseWriter) WrappedWriter() http.ResponseWriter {
+	return this.ResponseWriter
+}
+
 // ContextHandler gives a context storage that lives only for the duration of
 // the request, with no locking involved.
 func ContextHandler(h http.Handler, cap int) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := w.(*contextResponseWriter); ok {
+			if _, ok := GetContext(w); ok {
 				// Self-awareness, context handler is already set up
 				h.ServeHTTP(w, r)
 				return
@@ -32,10 +37,13 @@ func ContextHandler(h http.Handler, cap int) http.Handler {
 }
 
 // Helper function to retrieve the context map from the ResponseWriter interface.
-func GetContext(w http.ResponseWriter) map[interface{}]interface{} {
-	ctxw, ok := w.(*contextResponseWriter)
+func GetContext(w http.ResponseWriter) (map[interface{}]interface{}, bool) {
+	ctxw, ok := GetResponseWriter(w, func(tst http.ResponseWriter) bool {
+		_, ok := tst.(*contextResponseWriter)
+		return ok
+	})
 	if ok {
-		return ctxw.m
+		return ctxw.(*contextResponseWriter).m, true
 	}
-	return nil
+	return nil, false
 }

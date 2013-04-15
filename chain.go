@@ -17,7 +17,7 @@ type chainHandler struct {
 }
 
 // Implementation of the ChainableHandler interface, calls the chained handler
-// after the current one.
+// after the current one (sequential).
 func (this *chainHandler) Chain(h http.Handler) ChainableHandler {
 	return &chainHandler{
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

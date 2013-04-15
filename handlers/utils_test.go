@@ -21,10 +21,12 @@ func startServer(h http.Handler, path string) {
 	}
 }
 
-func assertTrue(cond bool, msg string, t *testing.T) {
+func assertTrue(cond bool, msg string, t *testing.T) bool {
 	if !cond {
 		t.Error(msg)
+		return false
 	}
+	return true
 }
 
 func assertStatus(ex, ac int, t *testing.T) {

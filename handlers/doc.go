@@ -21,4 +21,5 @@
 //     receives a status code 500.
 // - StaticFileHandler(string) : serve the contents of a specific file.
 //
+// TODO : SessionHandler? DynamicPageHandler?
 package handlers
