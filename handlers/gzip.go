@@ -29,12 +29,17 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
+// Implement WrapWriter interface
+func (w *gzipResponseWriter) WrappedWriter() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 // Gzip compression HTTP handler.
 func GZIPHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := w.(*gzipResponseWriter); ok {
-				// Self-awareness, the ResponseWriter is already a gzip writer, ignore
+			if _, ok := getGzipWriter(w); ok {
+				// Self-awareness, gzip handler is already set up
 				h.ServeHTTP(w, r)
 				return
 			}
@@ -93,4 +98,16 @@ func setGzipHeaders(hdr http.Header) {
 	// The content-type will be explicitly set somewhere down the path of handlers
 	hdr.Set("Content-Encoding", "gzip")
 	hdr.Del("Content-Length")
+}
+
+// Helper function to retrieve the gzip writer.
+func getGzipWriter(w http.ResponseWriter) (*gzipResponseWriter, bool) {
+	gz, ok := GetResponseWriter(w, func(tst http.ResponseWriter) bool {
+		_, ok := tst.(*gzipResponseWriter)
+		return ok
+	})
+	if ok {
+		return gz.(*gzipResponseWriter), true
+	}
+	return nil, false
 }

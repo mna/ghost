@@ -92,7 +92,7 @@ func NewLogOptions(l *log.Logger, ft string, tok ...string) *LogOptions {
 func LogHandler(h http.Handler, opts *LogOptions) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := w.(*statusResponseWriter); ok {
+			if _, ok := getStatusWriter(w); ok {
 				// Self-awareness, logging handler already set up
 				h.ServeHTTP(w, r)
 				return
@@ -187,4 +187,16 @@ func logRequest(w *statusResponseWriter, r *http.Request, st time.Time, opts *Lo
 		}
 	}
 	fn(format, args...)
+}
+
+// Helper function to retrieve the status writer.
+func getStatusWriter(w http.ResponseWriter) (*statusResponseWriter, bool) {
+	st, ok := GetResponseWriter(w, func(tst http.ResponseWriter) bool {
+		_, ok := tst.(*statusResponseWriter)
+		return ok
+	})
+	if ok {
+		return st.(*statusResponseWriter), true
+	}
+	return nil, false
 }
