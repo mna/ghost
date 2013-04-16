@@ -30,12 +30,16 @@ func TestGzippedAuth(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {
 			usr, ok := GetUser(w)
 			if assertTrue(ok, "expected authenticated user, got false", t) {
-				assertTrue(usr.(string) == "me", fmt.Sprintf("expected user to be 'me', got '%s'", usr), t)
+				assertTrue(usr.(string) == "meyou", fmt.Sprintf("expected user data to be 'meyou', got '%s'", usr), t)
+			}
+			usr, ok = GetUserName(w)
+			if assertTrue(ok, "expected authenticated user name, got false", t) {
+				assertTrue(usr == "me", fmt.Sprintf("expected user name to be 'me', got '%s'", usr), t)
 			}
 			w.Write([]byte(usr.(string)))
 		}), func(u, pwd string) (interface{}, bool) {
 		if u == "me" && pwd == "you" {
-			return u, true
+			return u + pwd, true
 		}
 		return nil, false
 	}, ""))

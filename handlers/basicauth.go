@@ -14,7 +14,8 @@ import (
 // Internal writer that keeps track of the currently authenticated user.
 type userResponseWriter struct {
 	http.ResponseWriter
-	user interface{}
+	user     interface{}
+	userName string
 }
 
 // Implement the WrapWriter interface.
@@ -25,7 +26,7 @@ func (this *userResponseWriter) WrappedWriter() http.ResponseWriter {
 // Writes an unauthorized response to the client, specifying the expected authentication
 // information.
 func Unauthorized(w http.ResponseWriter, realm string) {
-	w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, realm))
+	w.Header().Set("Www-Authenticate", fmt.Sprintf(`Basic realm="%s"`, realm))
 	w.WriteHeader(http.StatusUnauthorized)
 	w.Write([]byte("Unauthorized"))
 }
@@ -78,7 +79,7 @@ func BasicAuthHandler(h http.Handler,
 			udata, ok := authFn(user, pwd)
 			if ok {
 				// Save user data and continue
-				uw := &userResponseWriter{w, udata}
+				uw := &userResponseWriter{w, udata, user}
 				h.ServeHTTP(uw, r)
 			} else {
 				Unauthorized(w, realm)
@@ -97,4 +98,17 @@ func GetUser(w http.ResponseWriter) (interface{}, bool) {
 		return usr.(*userResponseWriter).user, true
 	}
 	return nil, false
+}
+
+// Return the currently authenticated user name. This is the user name that was
+// authenticated for the current request.
+func GetUserName(w http.ResponseWriter) (string, bool) {
+	usr, ok := GetResponseWriter(w, func(tst http.ResponseWriter) bool {
+		_, ok := tst.(*userResponseWriter)
+		return ok
+	})
+	if ok {
+		return usr.(*userResponseWriter).userName, true
+	}
+	return "", false
 }
