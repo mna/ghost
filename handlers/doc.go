@@ -13,13 +13,13 @@
 // This package adds the following list of handlers:
 //
 // - ContextHandler(http.Handler, int) : a volatile storage map valid only
-//     for the duration of the request, with no locking involved.
-// - GZIPHandler(http.Handler) : compresses the content of the body if the client
+//     for the duration of the request, with no locking required.
+// - GZIPHandler(http.Handler) : compress the content of the body if the client
 //     accepts gzip compression.
 // - LogHandler(http.Handler, *LogOptions) : customizable request logger.
-// - PanicHandler(http.Handler) : handles panics gracefully so that the client 
-//     receives a status code 500.
+// - PanicHandler(http.Handler) : handle panics gracefully so that the client
+//     receives a response (status code 500).
 // - StaticFileHandler(string) : serve the contents of a specific file.
 //
-// TODO : SessionHandler? DynamicPageHandler?
+// TODO : SessionHandler, DynamicPageHandler, FaviconHandler.
 package handlers
