@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
 func TestGzipped(t *testing.T) {
-	path := fmt.Sprintf("http://localhost%s/gzipped", svrAddr)
 	body := "This is the body"
 	headers := []string{"gzip", "*", "gzip, deflate, sdch"}
 
@@ -18,11 +17,12 @@ func TestGzipped(t *testing.T) {
 				panic(err)
 			}
 		}))
-	startServer(h, "/gzipped")
+	s := httptest.NewServer(h)
+	defer s.Close()
 
 	for _, hdr := range headers {
 		t.Logf("running with Accept-Encoding header %s", hdr)
-		req, err := http.NewRequest("GET", path, nil)
+		req, err := http.NewRequest("GET", s.URL, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -38,7 +38,6 @@ func TestGzipped(t *testing.T) {
 }
 
 func TestNoGzip(t *testing.T) {
-	path := fmt.Sprintf("http://localhost%s/nogzip", svrAddr)
 	body := "This is the body"
 
 	h := GZIPHandler(http.HandlerFunc(
@@ -48,9 +47,10 @@ func TestNoGzip(t *testing.T) {
 				panic(err)
 			}
 		}))
-	startServer(h, "/nogzip")
+	s := httptest.NewServer(h)
+	defer s.Close()
 
-	req, err := http.NewRequest("GET", path, nil)
+	req, err := http.NewRequest("GET", s.URL, nil)
 	if err != nil {
 		panic(err)
 	}

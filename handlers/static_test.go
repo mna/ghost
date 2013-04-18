@@ -1,17 +1,17 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
 func TestServeFile(t *testing.T) {
-	path := fmt.Sprintf("http://localhost%s/servefile", svrAddr)
 	h := StaticFileHandler("./testdata/styles.css")
-	startServer(h, "/servefile")
+	s := httptest.NewServer(h)
+	defer s.Close()
 
-	res, err := http.Get(path)
+	res, err := http.Get(s.URL)
 	if err != nil {
 		panic(err)
 	}
@@ -24,11 +24,11 @@ func TestServeFile(t *testing.T) {
 }
 
 func TestGzippedFile(t *testing.T) {
-	path := fmt.Sprintf("http://localhost%s/gzippedfile", svrAddr)
 	h := GZIPHandler(StaticFileHandler("./testdata/styles.css"))
-	startServer(h, "/gzippedfile")
+	s := httptest.NewServer(h)
+	defer s.Close()
 
-	req, err := http.NewRequest("GET", path, nil)
+	req, err := http.NewRequest("GET", s.URL, nil)
 	if err != nil {
 		panic(err)
 	}
