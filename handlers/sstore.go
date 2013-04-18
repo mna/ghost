@@ -7,18 +7,18 @@ import (
 // SessionStore interface, must be implemented by any store to be used
 // for session storage.
 type SessionStore interface {
-	Get(id string) (interface{}, error)    // Get the session from the store
-	Set(id string, sess interface{}) error // Save the session in the store
-	Delete(id string) error                // Delete the session from the store
-	Clear() error                          // Delete all sessions from the store
-	Len() int                              // Get the number of sessions in the store
+	Get(id string) (*Session, error)    // Get the session from the store
+	Set(id string, sess *Session) error // Save the session in the store
+	Delete(id string) error             // Delete the session from the store
+	Clear() error                       // Delete all sessions from the store
+	Len() int                           // Get the number of sessions in the store
 }
 
 // In-memory implementation of a session store. Not recommended for production
 // use.
 type MemoryStore struct {
 	l    sync.RWMutex
-	m    map[string]interface{}
+	m    map[string]*Session
 	capc int
 }
 
@@ -33,13 +33,13 @@ func (this *MemoryStore) Len() int {
 	return len(this.m)
 }
 
-func (this *MemoryStore) Get(id string) (interface{}, error) {
+func (this *MemoryStore) Get(id string) (*Session, error) {
 	this.l.RLock()
 	defer this.l.RUnlock()
 	return this.m[id], nil
 }
 
-func (this *MemoryStore) Set(id string, sess interface{}) error {
+func (this *MemoryStore) Set(id string, sess *Session) error {
 	this.l.Lock()
 	defer this.l.Unlock()
 	this.m[id] = sess
@@ -61,5 +61,5 @@ func (this *MemoryStore) Clear() error {
 }
 
 func (this *MemoryStore) newMap() {
-	this.m = make(map[string]interface{}, this.capc)
+	this.m = make(map[string]*Session, this.capc)
 }
