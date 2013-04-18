@@ -3,11 +3,11 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
 func TestContext(t *testing.T) {
-	path := fmt.Sprintf("http://localhost%s/context", svrAddr)
 	key := "key"
 	val := 10
 	body := "this is the output"
@@ -22,18 +22,17 @@ func TestContext(t *testing.T) {
 			ctx[key] = val
 			h2.ServeHTTP(w, r)
 		}), 2)
-
-	// Start and stop the server
-	startServer(h, "/context")
+	s := httptest.NewServer(h)
+	defer s.Close()
 
 	// First call
-	res, err := http.DefaultClient.Get(path)
+	res, err := http.DefaultClient.Get(s.URL)
 	if err != nil {
 		panic(err)
 	}
 	res.Body.Close()
 	// Second call, context should be cleaned at start
-	res, err = http.DefaultClient.Get(path)
+	res, err = http.DefaultClient.Get(s.URL)
 	if err != nil {
 		panic(err)
 	}
@@ -42,7 +41,6 @@ func TestContext(t *testing.T) {
 }
 
 func TestWrappedContext(t *testing.T) {
-	path := fmt.Sprintf("http://localhost%s/wrapped_context", svrAddr)
 	key := "key"
 	val := 10
 	body := "this is the output"
@@ -58,10 +56,10 @@ func TestWrappedContext(t *testing.T) {
 			ctx[key] = val
 			h2.ServeHTTP(w, r)
 		}), NewLogOptions(nil, "%s", "url")), 2)
+	s := httptest.NewServer(h)
+	defer s.Close()
 
-	// Start and stop the server
-	startServer(h, "/wrapped_context")
-	res, err := http.DefaultClient.Get(path)
+	res, err := http.DefaultClient.Get(s.URL)
 	if err != nil {
 		panic(err)
 	}
