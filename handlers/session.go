@@ -1,11 +1,17 @@
 package handlers
 
 import (
+	"errors"
+	"github.com/gorilla/securecookie"
 	"net/http"
 	"strings"
 )
 
 const defaultCookieName = "ghost.sid"
+
+var (
+	ErrSessionSecretMissing = errors.New("session secret is missing")
+)
 
 type Session struct {
 	ID   string
@@ -14,52 +20,118 @@ type Session struct {
 
 type SessionOptions struct {
 	Store          SessionStore
-	CookieTemplate *http.Cookie
+	CookieTemplate http.Cookie
 	TrustProxy     bool
+	Secret         string
 }
 
 type sessResponseWriter struct {
 	http.ResponseWriter
-	sess *Session
+	sess      *Session
+	sessStore SessionStore
+	sessSent  bool
 }
 
 func (this *sessResponseWriter) WrappedWriter() http.ResponseWriter {
 	return this.ResponseWriter
 }
 
-func SessionHandler(h http.Handler, opts *SessionOptions) http.Handler {
-	ck := opts.CookieTemplate
-	if ck == nil {
-		ck = &http.Cookie{
-			Name:   defaultCookieName,
-			Path:   "/",
-			MaxAge: 0,
-		}
+func (this *sessResponseWriter) Write(data []byte) (int, error) {
+	if !this.sessSent {
+		this.sendSessionCookie()
+		this.sessSent = true
+	}
+	return this.ResponseWriter.Write(data)
+}
+
+func (this *sessResponseWriter) WriteHeader(code int) {
+	if !this.sessSent {
+		this.sendSessionCookie()
+		this.sessSent = true
+	}
+	this.ResponseWriter.WriteHeader(code)
+}
+
+func (this *sessResponseWriter) sendSessionCookie() {
+}
+
+func SessionHandler(h http.Handler, opts SessionOptions) http.Handler {
+	// Make sure the required cookie fields are set
+	if opts.CookieTemplate.Name == "" {
+		opts.CookieTemplate.Name = defaultCookieName
+	}
+	if opts.CookieTemplate.Path == "" {
+		opts.CookieTemplate.Path = "/"
+	}
+	// Secret is required
+	if opts.Secret == "" {
+		panic(ErrSessionSecretMissing)
 	}
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := GetSession(w); ok {
+			if _, ok := getSessionWriter(w); ok {
 				// Self-awareness
 				h.ServeHTTP(w, r)
 				return
 			}
 
-			if strings.Index(r.URL.Path, ck.Path) != 0 {
+			if strings.Index(r.URL.Path, opts.CookieTemplate.Path) != 0 {
 				// Session cookie does not apply to this path
 				h.ServeHTTP(w, r)
 				return
 			}
+			// Get the session cookie
+			exCk, err := r.Cookie(opts.CookieTemplate.Name)
+			if err != nil {
+				// TODO : Generate a new Session
+			}
+			ckSessId, err := parseSignedCookie(exCk, opts.Secret)
+			if err != nil {
+				// TODO : Generate a new session
+			}
+			_ = ckSessId
+			srw := &sessResponseWriter{w, nil, opts.Store, false}
+			h.ServeHTTP(srw, r)
 		})
 }
 
-// Helper function to retrieve the session-augmented writer.
+// Helper function to retrieve the session for the current request.
 func GetSession(w http.ResponseWriter) (*Session, bool) {
+	ss, ok := getSessionWriter(w)
+	if ok {
+		return ss.sess, true
+	}
+	return nil, false
+}
+
+// Helper function to retrieve the session store
+func GetSessionStore(w http.ResponseWriter) (SessionStore, bool) {
+	ss, ok := getSessionWriter(w)
+	if ok {
+		return ss.sessStore, true
+	}
+	return nil, false
+}
+
+// Internal helper function to retrieve the session writer object.
+func getSessionWriter(w http.ResponseWriter) (*sessResponseWriter, bool) {
 	ss, ok := GetResponseWriter(w, func(tst http.ResponseWriter) bool {
 		_, ok := tst.(*sessResponseWriter)
 		return ok
 	})
 	if ok {
-		return ss.(*sessResponseWriter).sess, true
+		return ss.(*sessResponseWriter), true
 	}
 	return nil, false
+}
+
+func parseSignedCookie(ck *http.Cookie, secret string) (string, error) {
+	var val string
+
+	sck := securecookie.New([]byte(secret), nil)
+	err := sck.Decode(ck.Name, ck.Value, val)
+	if err != nil {
+		return "", err
+	}
+	return val, nil
 }
