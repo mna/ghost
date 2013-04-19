@@ -128,4 +128,56 @@ func testLogCase(tc testCase, t *testing.T) {
 	assertTrue(tc.rx.MatchString(ac), fmt.Sprintf("expected log to match '%s', got '%s'", tc.rx.String(), ac), t)
 }
 
-// TODO : Tests for Immediate = true and CustomTokens
+func TestImmediate(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	log.SetFlags(0)
+	log.SetOutput(buf)
+	opts := NewLogOptions(nil, Ltiny)
+	opts.Immediate = true
+	h := LogHandler(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(200)
+			w.Write([]byte("body"))
+		}), opts)
+	s := httptest.NewServer(h)
+	defer s.Close()
+
+	res, err := http.Get(s.URL)
+	if err != nil {
+		panic(err)
+	}
+	assertStatus(http.StatusOK, res.StatusCode, t)
+	ac := buf.String()
+	// Since it is Immediate logging, status is still 0 and response time is less than 100ms
+	rx := regexp.MustCompile(`GET / 0  - 0\.0\d\d s\n`)
+	assertTrue(rx.MatchString(ac), fmt.Sprintf("expected log to match '%s', got '%s'", rx.String(), ac), t)
+}
+
+func TestCustom(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	log.SetFlags(0)
+	log.SetOutput(buf)
+	opts := NewLogOptions(nil, "%s %s", "method", "custom")
+	opts.CustomTokens["custom"] = func(w http.ResponseWriter, r *http.Request) string {
+		return "toto"
+	}
+
+	h := LogHandler(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(200)
+			w.Write([]byte("body"))
+		}), opts)
+	s := httptest.NewServer(h)
+	defer s.Close()
+
+	res, err := http.Get(s.URL)
+	if err != nil {
+		panic(err)
+	}
+	assertStatus(http.StatusOK, res.StatusCode, t)
+	ac := buf.String()
+	rx := regexp.MustCompile(`GET toto`)
+	assertTrue(rx.MatchString(ac), fmt.Sprintf("expected log to match '%s', got '%s'", rx.String(), ac), t)
+}
