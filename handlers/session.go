@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"errors"
-	"github.com/gorilla/securecookie"
 	"net/http"
 	"strings"
+
+	"github.com/gorilla/securecookie"
 )
 
 const defaultCookieName = "ghost.sid"
@@ -27,9 +28,11 @@ type SessionOptions struct {
 
 type sessResponseWriter struct {
 	http.ResponseWriter
-	sess      *Session
-	sessStore SessionStore
-	sessSent  bool
+	sess         *Session
+	sessSent     bool
+	opts         *SessionOptions
+	req          *http.Request
+	cookieSessID string
 }
 
 func (this *sessResponseWriter) WrappedWriter() http.ResponseWriter {
@@ -50,9 +53,26 @@ func (this *sessResponseWriter) WriteHeader(code int) {
 		this.sessSent = true
 	}
 	this.ResponseWriter.WriteHeader(code)
+
 }
 
 func (this *sessResponseWriter) sendSessionCookie() {
+	if this.sess == nil {
+		return
+	}
+	proto := strings.Trim(strings.ToLower(this.req.Header.Get("X-Forwarded-Proto")), " ")
+	tls := this.req.TLS != nil || (strings.HasPrefix(proto, "https") && this.opts.TrustProxy)
+	if this.opts.CookieTemplate.Secure && !tls {
+		// TODO : Log
+		// Requested secure cookie, but not a secure connection, do not send
+		return
+	}
+	isNew := this.cookieSessID != this.sess.ID
+	if !isNew {
+		if this.opts.CookieTemplate.RawExpires == "" {
+
+		}
+	}
 }
 
 func SessionHandler(h http.Handler, opts SessionOptions) http.Handler {
@@ -87,10 +107,26 @@ func SessionHandler(h http.Handler, opts SessionOptions) http.Handler {
 			}
 			ckSessId, err := parseSignedCookie(exCk, opts.Secret)
 			if err != nil {
-				// TODO : Generate a new session
+				// TODO : Generate a new session if none yet
 			}
-			_ = ckSessId
-			srw := &sessResponseWriter{w, nil, opts.Store, false}
+			if ckSessId == "" {
+				// TODO : Generate a new session if none yet
+			}
+			// Get the session
+			sess, err := opts.Store.Get(ckSessId)
+			if err != nil {
+				// TODO : Generate a new session if none yet
+			} else if sess == nil {
+				// TODO : Generate a new session if none yet
+			}
+			srw := &sessResponseWriter{w, nil, false, &opts, r, ckSessId}
+			defer func() {
+				srw.sess.resetMaxAge()
+				err := srw.opts.Store.Set(srw.sess.ID, srw.sess)
+				if err != nil {
+					// TODO : Log error
+				}
+			}()
 			h.ServeHTTP(srw, r)
 		})
 }
@@ -108,7 +144,7 @@ func GetSession(w http.ResponseWriter) (*Session, bool) {
 func GetSessionStore(w http.ResponseWriter) (SessionStore, bool) {
 	ss, ok := getSessionWriter(w)
 	if ok {
-		return ss.sessStore, true
+		return ss.opts.Store, true
 	}
 	return nil, false
 }
