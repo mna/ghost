@@ -5,7 +5,7 @@ package handlers
 
 import (
 	"fmt"
-	"log"
+	"github.com/PuerkitoBio/ghost"
 	"net/http"
 	"regexp"
 	"time"
@@ -69,7 +69,7 @@ func (this *statusResponseWriter) WrappedWriter() http.ResponseWriter {
 
 // LogHandler options
 type LogOptions struct {
-	Logger       *log.Logger
+	LogFn        func(string, ...interface{}) // Defaults to ghost.LogFn if nil
 	Format       string
 	Tokens       []string
 	CustomTokens map[string]func(http.ResponseWriter, *http.Request) string
@@ -78,9 +78,9 @@ type LogOptions struct {
 }
 
 // Create a new LogOptions struct. The DateFormat defaults to time.RFC3339.
-func NewLogOptions(l *log.Logger, ft string, tok ...string) *LogOptions {
+func NewLogOptions(l func(string, ...interface{}), ft string, tok ...string) *LogOptions {
 	return &LogOptions{
-		Logger:       l,
+		LogFn:        l,
 		Format:       ft,
 		Tokens:       tok,
 		CustomTokens: make(map[string]func(http.ResponseWriter, *http.Request) string),
@@ -161,11 +161,11 @@ func logRequest(w *statusResponseWriter, r *http.Request, st time.Time, opts *Lo
 		toks   []string
 	)
 
-	// If no specific logger, use the default one from the log package
-	if opts.Logger == nil {
-		fn = log.Printf
+	// If no specific log function, use the default one from the ghost package
+	if opts.LogFn == nil {
+		fn = ghost.LogFn
 	} else {
-		fn = opts.Logger.Printf
+		fn = opts.LogFn
 	}
 
 	// If this is a predefined format, use it instead

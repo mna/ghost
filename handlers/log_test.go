@@ -101,7 +101,7 @@ func TestLog(t *testing.T) {
 func testLogCase(tc testCase, t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	log.SetOutput(buf)
-	opts := NewLogOptions(nil, tc.fmt, tc.tok)
+	opts := NewLogOptions(log.Printf, tc.fmt, tc.tok)
 	opts.DateFormat = "2006-01-02"
 	h := LogHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {

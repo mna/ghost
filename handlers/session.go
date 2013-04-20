@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
+	"hash/crc32"
 	"net/http"
 	"strings"
 
@@ -17,6 +19,7 @@ var (
 type Session struct {
 	ID   string
 	Data map[interface{}]interface{}
+	// TODO : If MaxAge or Expires field, flag as json-ignore
 }
 
 type SessionOptions struct {
@@ -119,9 +122,11 @@ func SessionHandler(h http.Handler, opts SessionOptions) http.Handler {
 			} else if sess == nil {
 				// TODO : Generate a new session if none yet
 			}
+			oriHash := hash(sess)
+			_ = oriHash
 			srw := &sessResponseWriter{w, nil, false, &opts, r, ckSessId}
 			defer func() {
-				srw.sess.resetMaxAge()
+				//srw.sess.resetMaxAge()
 				err := srw.opts.Store.Set(srw.sess.ID, srw.sess)
 				if err != nil {
 					// TODO : Log error
@@ -170,4 +175,12 @@ func parseSignedCookie(ck *http.Cookie, secret string) (string, error) {
 		return "", err
 	}
 	return val, nil
+}
+
+func hash(s *Session) uint32 {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return 0 // TODO : Return what? 0 means treat as different session value?
+	}
+	return crc32.ChecksumIEEE(data)
 }
