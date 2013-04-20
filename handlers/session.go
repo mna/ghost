@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/PuerkitoBio/ghost"
 	"github.com/gorilla/securecookie"
+	"github.com/nu7hatch/gouuid"
 )
 
 const defaultCookieName = "ghost.sid"
@@ -19,7 +21,27 @@ var (
 type Session struct {
 	ID   string
 	Data map[interface{}]interface{}
-	// TODO : If MaxAge or Expires field, flag as json-ignore
+	// TODO : If MaxAge or Expires field, flag as json-ignore or internal fields?
+	maxAge         int
+	originalMaxAge int
+}
+
+func newSession() *Session {
+	uid, err := uuid.NewV4()
+	if err != nil {
+		ghost.LogFn("ghost.session : error generating session ID : %s", err)
+		return nil
+	}
+	return &Session{
+		uid.String(),
+		make(map[interface{}]interface{}),
+		0,
+		0,
+	}
+}
+
+func (this *Session) resetMaxAge() {
+	this.maxAge = this.originalMaxAge
 }
 
 type SessionOptions struct {
@@ -66,8 +88,7 @@ func (this *sessResponseWriter) sendSessionCookie() {
 	proto := strings.Trim(strings.ToLower(this.req.Header.Get("X-Forwarded-Proto")), " ")
 	tls := this.req.TLS != nil || (strings.HasPrefix(proto, "https") && this.opts.TrustProxy)
 	if this.opts.CookieTemplate.Secure && !tls {
-		// TODO : Log
-		// Requested secure cookie, but not a secure connection, do not send
+		ghost.LogFn("ghost.session : secure cookie on a non-secure connection, cookie not sent")
 		return
 	}
 	isNew := this.cookieSessID != this.sess.ID
@@ -104,32 +125,38 @@ func SessionHandler(h http.Handler, opts SessionOptions) http.Handler {
 				return
 			}
 			// Get the session cookie
+			var sess *Session
 			exCk, err := r.Cookie(opts.CookieTemplate.Name)
 			if err != nil {
-				// TODO : Generate a new Session
+				sess = newSession()
+				ghost.LogFn("ghost.session : error getting session cookie : %s", err)
+			} else {
+				ckSessId, err := parseSignedCookie(exCk, opts.Secret)
+				if err != nil {
+					sess = newSession()
+					ghost.LogFn("ghost.session : error parsing signed cookie : %s", err)
+				} else if ckSessId == "" {
+					sess = newSession()
+					ghost.LogFn("ghost.session : no existing session ID")
+				} else {
+					// Get the session
+					sess, err := opts.Store.Get(ckSessId)
+					if err != nil {
+						sess = newSession()
+						ghost.LogFn("ghost.session : error getting session from store : %s", err)
+					} else if sess == nil {
+						sess = newSession()
+						ghost.LogFn("ghost.session : nil session")
+					}
+				}
 			}
-			ckSessId, err := parseSignedCookie(exCk, opts.Secret)
-			if err != nil {
-				// TODO : Generate a new session if none yet
-			}
-			if ckSessId == "" {
-				// TODO : Generate a new session if none yet
-			}
-			// Get the session
-			sess, err := opts.Store.Get(ckSessId)
-			if err != nil {
-				// TODO : Generate a new session if none yet
-			} else if sess == nil {
-				// TODO : Generate a new session if none yet
-			}
-			oriHash := hash(sess)
-			_ = oriHash
-			srw := &sessResponseWriter{w, nil, false, &opts, r, ckSessId}
+			_ = hash(sess)
+			srw := &sessResponseWriter{w, nil, false, &opts, r, ""}
 			defer func() {
-				//srw.sess.resetMaxAge()
+				srw.sess.resetMaxAge()
 				err := srw.opts.Store.Set(srw.sess.ID, srw.sess)
 				if err != nil {
-					// TODO : Log error
+					ghost.LogFn("ghost.session : error saving session to store : %s", err)
 				}
 			}()
 			h.ServeHTTP(srw, r)
