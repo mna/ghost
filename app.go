@@ -52,16 +52,6 @@ func (this *App) Run() {
 
 }
 
-func (this *App) RegisterTemplateCompiler(ext string, c TemplateCompiler) {
-	this.mc.Lock()
-	defer this.mc.Unlock()
-	this.compilers[ext] = c
-}
-
-func (this *App) CompileTemplates(path string, recursive bool) error {
-	return nil
-}
-
 func (this *App) compileTemplate(p string) error {
 	this.mc.RLock()
 	defer this.mc.RUnlock()

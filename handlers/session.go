@@ -149,28 +149,21 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.Handler {
 					sess = newSession()
 					ghost.LogFn("ghost.session : no existing session ID")
 				} else {
-					ghost.LogFn("ghost.session : get from store, id = %s", ckSessId)
 					// Get the session
 					sess, err = opts.Store.Get(ckSessId)
 					if err != nil {
-						ghost.LogFn("ghost.session : get from store error, id = %s", ckSessId)
 						sess = newSession()
 						ghost.LogFn("ghost.session : error getting session from store : %s", err)
 					} else if sess == nil {
-						ghost.LogFn("ghost.session : get from store is nil, id = %s", ckSessId)
 						sess = newSession()
 						ghost.LogFn("ghost.session : nil session")
-					} else {
-						ghost.LogFn("ghost.session : get from store=%#v", sess)
 					}
 				}
 			}
-			ghost.LogFn("ghost.session : sess = %#v", sess)
 			// Save the original hash of the session, used to compare if the contents
 			// have changed during the handling of the request, so that it has to be
 			// saved to the stored.
 			oriHash := hash(sess)
-			ghost.LogFn("ghost.session : original hash : %d", oriHash)
 
 			// Create the augmented ResponseWriter.
 			srw := &sessResponseWriter{w, sess, opts.Store, false, func() {
@@ -205,18 +198,14 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.Handler {
 			defer func() {
 				// TODO : Expiration management? srw.sess.resetMaxAge()
 				if newHash := hash(sess); oriHash == newHash && newHash != 0 {
-					ghost.LogFn("ghost.session : new hash : %d", newHash)
 					// No changes to the session, no need to save
 					ghost.LogFn("ghost.session : no changes to save to store")
 					return
-				} else {
-					ghost.LogFn("ghost.session : new hash : %d", newHash)
 				}
 				err := opts.Store.Set(sess.ID(), sess)
 				if err != nil {
 					ghost.LogFn("ghost.session : error saving session to store : %s", err)
 				}
-				ghost.LogFn("ghost.session : session saved : %s", sess.ID())
 			}()
 
 			// Call wrapped handler

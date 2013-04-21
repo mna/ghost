@@ -1,4 +1,4 @@
-package templates
+package amber
 
 import (
 	"github.com/PuerkitoBio/ghost"
@@ -31,4 +31,8 @@ func (this *AmberCompiler) Compile(f string) (ghost.Templater, error) {
 		return nil, err
 	}
 	return this.c.Compile()
+}
+
+func init() {
+	ghost.Register(".amber", NewAmberCompiler(amber.DefaultOptions))
 }
