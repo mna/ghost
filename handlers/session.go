@@ -61,6 +61,14 @@ type SessionOptions struct {
 	Secret         string
 }
 
+// Create a new SessionOptions struct, using default cookie and proxy values.
+func NewSessionOptions(store SessionStore, secret string) *SessionOptions {
+	return &SessionOptions{
+		Store:  store,
+		Secret: secret,
+	}
+}
+
 // The augmented ResponseWriter struct for the session handler. It holds the current
 // Session object and Session store, as well as flags and function to send the actual
 // session cookie at the end of the request.
@@ -96,7 +104,7 @@ func (this *sessResponseWriter) WriteHeader(code int) {
 }
 
 // Create a Session handler to offer the Session behaviour to the specified handler.
-func SessionHandler(h http.Handler, opts SessionOptions) http.Handler {
+func SessionHandler(h http.Handler, opts *SessionOptions) http.Handler {
 	// Make sure the required cookie fields are set
 	if opts.CookieTemplate.Name == "" {
 		opts.CookieTemplate.Name = defaultCookieName
@@ -108,6 +116,8 @@ func SessionHandler(h http.Handler, opts SessionOptions) http.Handler {
 	if opts.Secret == "" {
 		panic(ErrSessionSecretMissing)
 	}
+
+	// Return the actual handler
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			if _, ok := getSessionWriter(w); ok {
@@ -186,12 +196,18 @@ func SessionHandler(h http.Handler, opts SessionOptions) http.Handler {
 			}}
 
 			defer func() {
-				srw.sess.resetMaxAge()
+				// TODO : Expiration management? srw.sess.resetMaxAge()
+				if newHash := hash(sess); oriHash == newHash && newHash != 0 {
+					// No changes to the session, no need to save
+					ghost.LogFn("ghost.session : no changes to save to store")
+					return
+				}
 				err := opts.Store.Set(sess.ID(), sess)
 				if err != nil {
 					ghost.LogFn("ghost.session : error saving session to store : %s", err)
 				}
 			}()
+
 			// Call wrapped handler
 			h.ServeHTTP(srw, r)
 		})
@@ -227,6 +243,7 @@ func getSessionWriter(w http.ResponseWriter) (*sessResponseWriter, bool) {
 	return nil, false
 }
 
+// Parse a signed cookie and return the cookie value
 func parseSignedCookie(ck *http.Cookie, secret string) (string, error) {
 	var val string
 
@@ -238,6 +255,7 @@ func parseSignedCookie(ck *http.Cookie, secret string) (string, error) {
 	return val, nil
 }
 
+// Sign the specified cookie's value
 func signCookie(ck *http.Cookie, secret string) error {
 	sck := securecookie.New([]byte(secret), nil)
 	enc, err := sck.Encode(ck.Name, ck.Value)
@@ -248,10 +266,11 @@ func signCookie(ck *http.Cookie, secret string) error {
 	return nil
 }
 
+// Compute a CRC32 hash of the session's JSON-encoded contents.
 func hash(s *Session) uint32 {
 	data, err := json.Marshal(s)
 	if err != nil {
-		return 0 // TODO : Return what? 0 means treat as different session value?
+		return 0 // 0 is always treated as "modified" session content
 	}
 	return crc32.ChecksumIEEE(data)
 }

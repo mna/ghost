@@ -5,10 +5,11 @@ package handlers
 
 import (
 	"fmt"
-	"github.com/PuerkitoBio/ghost"
 	"net/http"
 	"regexp"
 	"time"
+
+	"github.com/PuerkitoBio/ghost"
 )
 
 const (
