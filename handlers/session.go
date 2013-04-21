@@ -24,7 +24,7 @@ var (
 // format (i.e. json, sql, gob, etc. depending on how the store persists the data).
 type Session struct {
 	id   string
-	Data map[interface{}]interface{}
+	Data map[string]interface{} // JSON cannot marshal a map[interface{}]interface{}
 	// TODO : If MaxAge or Expires field, flag as json-ignore or internal fields?
 }
 
@@ -36,7 +36,7 @@ func newSession() *Session {
 	}
 	return &Session{
 		uid.String(),
-		make(map[interface{}]interface{}),
+		make(map[string]interface{}),
 	}
 }
 
@@ -149,21 +149,28 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.Handler {
 					sess = newSession()
 					ghost.LogFn("ghost.session : no existing session ID")
 				} else {
+					ghost.LogFn("ghost.session : get from store, id = %s", ckSessId)
 					// Get the session
-					sess, err := opts.Store.Get(ckSessId)
+					sess, err = opts.Store.Get(ckSessId)
 					if err != nil {
+						ghost.LogFn("ghost.session : get from store error, id = %s", ckSessId)
 						sess = newSession()
 						ghost.LogFn("ghost.session : error getting session from store : %s", err)
 					} else if sess == nil {
+						ghost.LogFn("ghost.session : get from store is nil, id = %s", ckSessId)
 						sess = newSession()
 						ghost.LogFn("ghost.session : nil session")
+					} else {
+						ghost.LogFn("ghost.session : get from store=%#v", sess)
 					}
 				}
 			}
+			ghost.LogFn("ghost.session : sess = %#v", sess)
 			// Save the original hash of the session, used to compare if the contents
 			// have changed during the handling of the request, so that it has to be
 			// saved to the stored.
 			oriHash := hash(sess)
+			ghost.LogFn("ghost.session : original hash : %d", oriHash)
 
 			// Create the augmented ResponseWriter.
 			srw := &sessResponseWriter{w, sess, opts.Store, false, func() {
@@ -198,14 +205,18 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.Handler {
 			defer func() {
 				// TODO : Expiration management? srw.sess.resetMaxAge()
 				if newHash := hash(sess); oriHash == newHash && newHash != 0 {
+					ghost.LogFn("ghost.session : new hash : %d", newHash)
 					// No changes to the session, no need to save
 					ghost.LogFn("ghost.session : no changes to save to store")
 					return
+				} else {
+					ghost.LogFn("ghost.session : new hash : %d", newHash)
 				}
 				err := opts.Store.Set(sess.ID(), sess)
 				if err != nil {
 					ghost.LogFn("ghost.session : error saving session to store : %s", err)
 				}
+				ghost.LogFn("ghost.session : session saved : %s", sess.ID())
 			}()
 
 			// Call wrapped handler
@@ -248,7 +259,7 @@ func parseSignedCookie(ck *http.Cookie, secret string) (string, error) {
 	var val string
 
 	sck := securecookie.New([]byte(secret), nil)
-	err := sck.Decode(ck.Name, ck.Value, val)
+	err := sck.Decode(ck.Name, ck.Value, &val)
 	if err != nil {
 		return "", err
 	}
@@ -270,6 +281,7 @@ func signCookie(ck *http.Cookie, secret string) error {
 func hash(s *Session) uint32 {
 	data, err := json.Marshal(s)
 	if err != nil {
+		ghost.LogFn("ghost.session : error hash : %s", err)
 		return 0 // 0 is always treated as "modified" session content
 	}
 	return crc32.ChecksumIEEE(data)
