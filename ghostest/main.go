@@ -21,15 +21,27 @@ import (
 )
 
 func main() {
+	memStore := handlers.NewMemoryStore(1)
+	secret := "testimony of the ancients"
 	log.SetFlags(0)
 
 	mux := pat.New()
 	mux.Get("/", handlers.StaticFileHandler("./index.html"))
-	mux.Get("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("/Users/martin/go/src/github.com/PuerkitoBio/ghost/ghostest/public/"))))
+	mux.Get("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("./public/"))))
+	mux.Get("/session", handlers.SessionHandler(
+		handlers.ContextHandler(
+			handlers.StaticFileHandler("./session.html"),
+			1),
+		handlers.NewSessionOptions(memStore, secret)))
+	mux.Get("/panic", http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			panic("explicit panic")
+		}))
+
 	h := handlers.PanicHandler(
 		handlers.LogHandler(
-			handlers.GZIPHandler(
-				mux),
+			//handlers.GZIPHandler(
+			mux, //),
 			handlers.NewLogOptions(nil, handlers.Ltiny)),
 		nil)
 

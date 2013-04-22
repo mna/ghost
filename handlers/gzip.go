@@ -59,6 +59,7 @@ func GZIPHandler(h http.Handler) http.Handler {
 			}
 
 			// Prepare a gzip response container
+			// TODO : Only if Content-Type is json/html/text?
 			setGzipHeaders(hdr)
 			gz := gzip.NewWriter(w)
 			defer gz.Close()
@@ -70,6 +71,7 @@ func GZIPHandler(h http.Handler) http.Handler {
 		})
 }
 
+// TODO : Generic header search function.
 func setVaryHeader(hdr http.Header) {
 	// Manage the Vary header field
 	vary := hdr["Vary"]

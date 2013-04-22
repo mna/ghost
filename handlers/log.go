@@ -46,7 +46,8 @@ var (
 // Augmented ResponseWriter implementation that captures the status code for the logger.
 type statusResponseWriter struct {
 	http.ResponseWriter
-	code int
+	code   int
+	oriURL string
 }
 
 // Intercept the WriteHeader call to save the status code.
@@ -102,12 +103,14 @@ func LogHandler(h http.Handler, opts *LogOptions) http.Handler {
 			// Save the response start time
 			st := time.Now()
 			// Call the wrapped handler, with the augmented ResponseWriter to handle the status code
-			stw := &statusResponseWriter{w, 0}
+			stw := &statusResponseWriter{w, 0, ""}
 
 			// Log immediately if requested, otherwise on exit
 			if opts.Immediate {
 				logRequest(stw, r, st, opts)
 			} else {
+				// Store original URL, may get modified by handlers (i.e. StripPrefix)
+				stw.oriURL = r.URL.String()
 				defer logRequest(stw, r, st, opts)
 			}
 			h.ServeHTTP(stw, r)
@@ -130,6 +133,9 @@ func getPredefinedTokenValue(t string, w *statusResponseWriter, r *http.Request,
 	case "method":
 		return r.Method, true
 	case "url":
+		if w.oriURL != "" {
+			return w.oriURL, true
+		}
 		return r.URL.String(), true
 	case "referrer", "referer":
 		return r.Referer(), true
