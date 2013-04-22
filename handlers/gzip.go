@@ -74,8 +74,6 @@ func GZIPHandler(h http.Handler) http.Handler {
 
 			// Prepare a gzip response container
 			// TODO : Only if Content-Type is json/html/text?
-			// TODO : THIS IS THE LINE THAT BREAKS THE PANIC PAGE IN GHOSTEST!!!
-			//setGzipHeaders(hdr)
 			gz := gzip.NewWriter(w)
 			h.ServeHTTP(
 				&gzipResponseWriter{
@@ -117,6 +115,7 @@ func acceptsGzip(acc []string) bool {
 func setGzipHeaders(hdr http.Header) {
 	// The content-type will be explicitly set somewhere down the path of handlers
 	hdr.Set("Content-Encoding", "gzip")
+	// BUG : No clever way to set the content length...
 	hdr.Del("Content-Length")
 }
 

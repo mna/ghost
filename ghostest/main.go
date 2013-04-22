@@ -28,11 +28,28 @@ func main() {
 	mux := pat.New()
 	mux.Get("/", handlers.StaticFileHandler("./index.html"))
 	mux.Get("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("./public/"))))
+
 	mux.Get("/session", handlers.SessionHandler(
 		handlers.ContextHandler(
 			handlers.StaticFileHandler("./session.html"),
 			1),
 		handlers.NewSessionOptions(memStore, secret)))
+
+	mux.Post("/session", handlers.SessionHandler(
+		handlers.ContextHandler(
+			http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					ssn, ok := handlers.GetSession(w)
+					if !ok {
+						panic("no session")
+					}
+					if err := r.ParseForm(); err != nil {
+						panic(err)
+					}
+					ssn.Data["text"] = r.FormValue("txt")
+				}), 1),
+		handlers.NewSessionOptions(memStore, secret)))
+
 	mux.Get("/panic", http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			panic("explicit panic")
