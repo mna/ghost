@@ -40,8 +40,8 @@ func main() {
 
 	h := handlers.PanicHandler(
 		handlers.LogHandler(
-			//handlers.GZIPHandler(
-			mux, //),
+			handlers.GZIPHandler(
+				mux),
 			handlers.NewLogOptions(nil, handlers.Ltiny)),
 		nil)
 

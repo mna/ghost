@@ -28,7 +28,6 @@ func PanicHandler(h http.Handler, errH http.Handler) http.Handler {
 						ew := &errResponseWriter{w, err}
 						errH.ServeHTTP(ew, r)
 					} else {
-						w.Header().Set("Content-Type", "text/plain")
 						http.Error(w, fmt.Sprintf("%s", err), http.StatusInternalServerError)
 					}
 				}

@@ -21,12 +21,26 @@ import (
 type gzipResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
+	encodingSet bool
 }
 
 // Unambiguous Write() implementation (otherwise both ResponseWriter and Writer
 // want to claim this method).
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	if !w.encodingSet {
+		setGzipHeaders(w.Header())
+		w.encodingSet = true
+	}
 	return w.Writer.Write(b)
+}
+
+// Intercept the WriteHeader call to correctly set the GZIP headers.
+func (w *gzipResponseWriter) WriteHeader(code int) {
+	if !w.encodingSet {
+		setGzipHeaders(w.Header())
+		w.encodingSet = true
+	}
+	w.ResponseWriter.WriteHeader(code)
 }
 
 // Implement WrapWriter interface
@@ -60,14 +74,17 @@ func GZIPHandler(h http.Handler) http.Handler {
 
 			// Prepare a gzip response container
 			// TODO : Only if Content-Type is json/html/text?
-			setGzipHeaders(hdr)
+			// TODO : THIS IS THE LINE THAT BREAKS THE PANIC PAGE IN GHOSTEST!!!
+			//setGzipHeaders(hdr)
 			gz := gzip.NewWriter(w)
-			defer gz.Close()
 			h.ServeHTTP(
 				&gzipResponseWriter{
 					Writer:         gz,
 					ResponseWriter: w,
 				}, r)
+			// Iff the handler completed successfully (no panic), close the gzip writer,
+			// which seems to generate a Write to the underlying writer.
+			gz.Close()
 		})
 }
 
@@ -86,6 +103,7 @@ func setVaryHeader(hdr http.Header) {
 	}
 }
 
+// Checks if the client accepts GZIP-encoded responses.
 func acceptsGzip(acc []string) bool {
 	for _, v := range acc {
 		trimmed := strings.ToLower(strings.Trim(v, " "))

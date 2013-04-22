@@ -62,3 +62,27 @@ func TestNoGzip(t *testing.T) {
 	assertHeader("Content-Encoding", "", res, t)
 	assertBody([]byte(body), res, t)
 }
+
+func TestGzipOuterPanic(t *testing.T) {
+	msg := "ko"
+
+	h := PanicHandler(
+		GZIPHandler(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				panic(msg)
+			})), nil)
+	s := httptest.NewServer(h)
+	defer s.Close()
+
+	req, err := http.NewRequest("GET", s.URL, nil)
+	if err != nil {
+		panic(err)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	assertStatus(http.StatusInternalServerError, res.StatusCode, t)
+	assertHeader("Content-Encoding", "", res, t)
+	assertBody([]byte(msg+"\n"), res, t)
+}
