@@ -60,3 +60,9 @@ func assertHeader(hName, ex string, res *http.Response, t *testing.T) {
 		t.Errorf("expected header %s to be %s, got %s", hName, ex, hVal)
 	}
 }
+
+func assertPanic(t *testing.T) {
+	if err := recover(); err == nil {
+		t.Error("expected a panic, got none")
+	}
+}
