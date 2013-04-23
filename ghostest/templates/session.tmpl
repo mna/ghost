@@ -1,6 +1,6 @@
 <html>
 				<head>
-								<title>Ghost Test</title>
+								<title>{{ .Title }}</title>
 								<link type="text/css" rel="stylesheet" href="/public/styles.css">
 				</head>
 				<body>
@@ -12,6 +12,7 @@
 												<li><a href="/public/jquery-2.0.0.min.js">JQuery</a></li>
 												<li><a href="/public/logo.png">Logo</a></li>
 								</ol>
+								<h2>Current Value: {{ .Text }}</h2>
 								<form method="POST">
 												<input type="text" name="txt" placeholder="some value to save to session"></input>
 												<button type="submit">Submit</button>
@@ -20,3 +21,4 @@
 								<script src="/public/jquery-2.0.0.min.js"></script>
 				</body>
 </html>
+

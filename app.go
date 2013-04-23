@@ -2,10 +2,6 @@ package ghost
 
 import (
 	"log"
-	"net/http"
-	"path"
-	"strings"
-	"sync"
 )
 
 // Logging function, defaults to Go's native log.Printf function. The idea to use
@@ -36,40 +32,3 @@ var LogFn = log.Printf
 //
 // TODO : OR, the App may not be necessary if the template rendering provider is itself
 // a handler? Like GetTemplater(w, path) Templater?
-type App struct {
-	*http.Server              // TODO: Embeds a native http Server but should hide parts
-	Env          string       // Env == "pprof" registers net/http/pprof handlers?
-	H            http.Handler // Can be any handler or a Mux
-
-	// Internal fields
-	mc        sync.RWMutex
-	mt        sync.RWMutex
-	compilers map[string]TemplateCompiler
-	templates map[string]Templater
-}
-
-func (this *App) Run() {
-
-}
-
-func (this *App) compileTemplate(p string) error {
-	this.mc.RLock()
-	defer this.mc.RUnlock()
-	ext := strings.ToLower(path.Ext(p))
-	c, ok := this.compilers[ext]
-	if !ok {
-		return nil // ErrNoTemplateCompiler
-	}
-	t, err := c.Compile(p)
-	if err != nil {
-		return err
-	}
-	this.addTemplater(strings.ToLower(p), t)
-	return nil
-}
-
-func (this *App) addTemplater(p string, t Templater) {
-	this.mt.Lock()
-	defer this.mt.Unlock()
-	this.templates[strings.ToLower(p)] = t
-}

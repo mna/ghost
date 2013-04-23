@@ -5,10 +5,11 @@
 // / 										| panic;log;gzip;static; -> serve file index.html
 // /public/styles.css 	| panic;log;gzip;StripPrefix;FileServer; -> serve directory public/
 // /public/script.js 		| panic;log;gzip;StripPrefix;FileServer; -> serve directory public/
-// /public/logo.jpg 		| panic;log;gzip;StripPrefix;FileServer; -> serve directory public/
+// /public/logo.png 		| panic;log;gzip;StripPrefix;FileServer; -> serve directory public/
 // /session 						| panic;log;gzip;session;context;static; -> serve file session.html
 // /session/auth 				| panic;log;gzip;basicauth;session;context;static; -> serve file auth.html
 // /panic 							| panic;log;gzip;custom; -> panics
+// TODO : Something that uses ChainHandlers() with context
 //
 package main
 
@@ -16,26 +17,46 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/PuerkitoBio/ghost"
 	"github.com/PuerkitoBio/ghost/handlers"
+	_ "github.com/PuerkitoBio/ghost/templates/gotpl"
 	"github.com/bmizerany/pat"
 )
 
+const (
+	sessionPageTitle = "SessionPage"
+	sessionPageKey   = "txt"
+)
+
+// The struct used to pass data to the session template.
+type sessionPageInfo struct {
+	Title string
+	Text  string
+}
+
 func main() {
+	// Create the common session store and secret
 	memStore := handlers.NewMemoryStore(1)
 	secret := "testimony of the ancients"
+
+	// Blank the default logger's prefixes
 	log.SetFlags(0)
 
+	// Compile the dynamic templates (native Go templates are registered via the
+	// for-side-effects-only import of gotpl)
+	err := ghost.CompileDir("./templates/")
+	if err != nil {
+		panic(err)
+	}
+
+	// Set the simple routes for static files
 	mux := pat.New()
 	mux.Get("/", handlers.StaticFileHandler("./index.html"))
 	mux.Get("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("./public/"))))
 
-	mux.Get("/session", handlers.SessionHandler(
-		handlers.ContextHandler(
-			handlers.StaticFileHandler("./session.html"),
-			1),
-		handlers.NewSessionOptions(memStore, secret)))
-
-	mux.Post("/session", handlers.SessionHandler(
+	// Set the more complex route for session handling and dynamic page (same
+	// handler is used for both GET and POST).
+	hSsn := handlers.SessionHandler(
 		handlers.ContextHandler(
 			http.HandlerFunc(
 				func(w http.ResponseWriter, r *http.Request) {
@@ -43,18 +64,41 @@ func main() {
 					if !ok {
 						panic("no session")
 					}
-					if err := r.ParseForm(); err != nil {
+					var txt interface{}
+					if r.Method == "GET" {
+						txt = ssn.Data[sessionPageKey]
+					} else {
+						txt = r.FormValue(sessionPageKey)
+						ssn.Data[sessionPageKey] = txt
+					}
+					var data sessionPageInfo
+					if txt != nil {
+						data = sessionPageInfo{sessionPageTitle, txt.(string)}
+					} else {
+						data = sessionPageInfo{sessionPageTitle, "[nil]"}
+					}
+					w.Header().Set("Content-Type", "text/html")
+					err := ghost.Execute("templates/session.tmpl", w, data)
+					if err != nil {
 						panic(err)
 					}
-					ssn.Data["text"] = r.FormValue("txt")
-				}), 1),
-		handlers.NewSessionOptions(memStore, secret)))
+				}),
+			1),
+		handlers.NewSessionOptions(memStore, secret))
+	mux.Get("/session", hSsn)
+	mux.Post("/session", hSsn)
 
+	// Set the panic route, which simply panics
 	mux.Get("/panic", http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			panic("explicit panic")
 		}))
 
+	// Combine the top level handlers, that wrap around the muxer.
+	// Panic is the outermost, so that any panic is caught and responded to with a code 500.
+	// Log is next, so that every request is logged along with the URL, status code and response time.
+	// GZIP is then applied, so that content is compressed.
+	// Finally, the muxer finds the specific handler that applies to the route.
 	h := handlers.PanicHandler(
 		handlers.LogHandler(
 			handlers.GZIPHandler(
@@ -62,7 +106,10 @@ func main() {
 			handlers.NewLogOptions(nil, handlers.Ltiny)),
 		nil)
 
+	// Assign the combined handler to the server.
 	http.Handle("/", h)
+
+	// Start it up.
 	if err := http.ListenAndServe(":9000", nil); err != nil {
 		panic(err)
 	}
