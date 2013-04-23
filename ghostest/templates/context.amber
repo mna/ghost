@@ -1,0 +1,7 @@
+!!! 5
+html
+	head
+		title Chained Context
+	body
+		h1 Chained Context
+		h2 Value found: #{Val}
