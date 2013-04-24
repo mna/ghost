@@ -20,28 +20,37 @@ import (
 type gzipResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
-	encodingSet bool
-	filterFn    func(http.ResponseWriter, *http.Request) bool
+	r        *http.Request // Keep a hold of the Request, for the filter function
+	filtered bool          // Has the request been run through the filter function?
+	dogzip   bool          // Should we do GZIP compression for this request?
+	filterFn func(http.ResponseWriter, *http.Request) bool
+}
+
+// Make sure the filter function is applied.
+func (w *gzipResponseWriter) applyFilter() {
+	if !w.filtered {
+		if w.dogzip = w.filterFn(w, w.r); w.dogzip {
+			setGzipHeaders(w.Header())
+		}
+		w.filtered = true
+	}
 }
 
 // Unambiguous Write() implementation (otherwise both ResponseWriter and Writer
 // want to claim this method).
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
-	// TODO : Filter...
-	if !w.encodingSet {
-		setGzipHeaders(w.Header())
-		w.encodingSet = true
+	w.applyFilter()
+	if w.dogzip {
+		// Write compressed
+		return w.Writer.Write(b)
 	}
-	return w.Writer.Write(b)
+	// Write uncompressed
+	return w.ResponseWriter.Write(b)
 }
 
 // Intercept the WriteHeader call to correctly set the GZIP headers.
 func (w *gzipResponseWriter) WriteHeader(code int) {
-	// TODO : Filter...
-	if !w.encodingSet {
-		setGzipHeaders(w.Header())
-		w.encodingSet = true
-	}
+	w.applyFilter()
 	w.ResponseWriter.WriteHeader(code)
 }
 
@@ -102,14 +111,18 @@ func GZIPHandler(h http.Handler, filterFn func(http.ResponseWriter, *http.Reques
 
 		// Prepare a gzip response container
 		gz := gzip.NewWriter(w)
-		h.ServeHTTP(
-			&gzipResponseWriter{
-				Writer:         gz,
-				ResponseWriter: w,
-			}, r)
-		// Iff the handler completed successfully (no panic), close the gzip writer,
+		gzw := &gzipResponseWriter{
+			Writer:         gz,
+			ResponseWriter: w,
+			r:              r,
+			filterFn:       filterFn,
+		}
+		h.ServeHTTP(gzw, r)
+		// Iff the handler completed successfully (no panic) and GZIP was indeed used, close the gzip writer,
 		// which seems to generate a Write to the underlying writer.
-		gz.Close()
+		if gzw.dogzip {
+			gz.Close()
+		}
 	}
 }
 
@@ -132,7 +145,6 @@ func acceptsGzip(hdr http.Header) bool {
 func setGzipHeaders(hdr http.Header) {
 	// The content-type will be explicitly set somewhere down the path of handlers
 	hdr.Set("Content-Encoding", "gzip")
-	// BUG : No clever way to set the content length...
 	hdr.Del("Content-Length")
 }
 
