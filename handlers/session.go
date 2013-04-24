@@ -6,6 +6,7 @@ import (
 	"hash/crc32"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/ghost"
 	"github.com/gorilla/securecookie"
@@ -23,25 +24,37 @@ var (
 // The information stored in this map should be marshalable for the target Session store
 // format (i.e. json, sql, gob, etc. depending on how the store persists the data).
 type Session struct {
-	id   string
 	Data map[string]interface{} // JSON cannot marshal a map[interface{}]interface{}
+
+	// Internal fields
+	id      string
+	isNew   bool
+	created time.Time
+	maxAge  time.Duration
 }
 
 // Create a new Session instance. It panics in the unlikely event that a new random ID cannot be generated.
-func newSession() *Session {
+func newSession(maxAge int) *Session {
 	uid, err := uuid.NewV4()
 	if err != nil {
 		panic(ErrNoSessionID)
 	}
 	return &Session{
-		uid.String(),
 		make(map[string]interface{}),
+		uid.String(),
+		true,
+		time.Now(),
+		time.Duration(maxAge) * time.Second,
 	}
 }
 
 // Gets the ID of the session.
 func (this *Session) ID() string {
 	return this.id
+}
+
+func (this *Session) IsNew() bool {
+	return this.isNew
 }
 
 // TODO : Resets the max age property of the session to its original value (sliding expiration).
@@ -142,24 +155,24 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.HandlerFunc {
 
 		exCk, err := r.Cookie(opts.CookieTemplate.Name)
 		if err != nil {
-			sess = newSession()
+			sess = newSession(opts.CookieTemplate.MaxAge)
 			ghost.LogFn("ghost.session : error getting session cookie : %s", err)
 		} else {
 			ckSessId, err = parseSignedCookie(exCk, opts.Secret)
 			if err != nil {
-				sess = newSession()
+				sess = newSession(opts.CookieTemplate.MaxAge)
 				ghost.LogFn("ghost.session : error parsing signed cookie : %s", err)
 			} else if ckSessId == "" {
-				sess = newSession()
+				sess = newSession(opts.CookieTemplate.MaxAge)
 				ghost.LogFn("ghost.session : no existing session ID")
 			} else {
 				// Get the session
 				sess, err = opts.Store.Get(ckSessId)
 				if err != nil {
-					sess = newSession()
+					sess = newSession(opts.CookieTemplate.MaxAge)
 					ghost.LogFn("ghost.session : error getting session from store : %s", err)
 				} else if sess == nil {
-					sess = newSession()
+					sess = newSession(opts.CookieTemplate.MaxAge)
 					ghost.LogFn("ghost.session : nil session")
 				}
 			}
@@ -170,7 +183,6 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.HandlerFunc {
 		oriHash := hash(sess)
 
 		// Create the augmented ResponseWriter.
-		var isNew bool
 		srw := &sessResponseWriter{w, sess, opts.Store, false, func() {
 			// This function is called when the header is about to be written, so that
 			// the session cookie is correctly set.
@@ -182,8 +194,7 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.HandlerFunc {
 				ghost.LogFn("ghost.session : secure cookie on a non-secure connection, cookie not sent")
 				return
 			}
-			isNew = ckSessId != sess.ID()
-			if !isNew {
+			if !sess.IsNew() {
 				// If this is not a new session, no need to send back the cookie
 				// TODO : Handle expires?
 				return
@@ -206,7 +217,7 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.HandlerFunc {
 		// TODO : Expiration management? srw.sess.resetMaxAge()
 		// Do not save if content is the same, unless session is new (to avoid
 		// creating a new session and sending a cookie on each successive request).
-		if newHash := hash(sess); !isNew && oriHash == newHash && newHash != 0 {
+		if newHash := hash(sess); !sess.IsNew() && oriHash == newHash && newHash != 0 {
 			// No changes to the session, no need to save
 			ghost.LogFn("ghost.session : no changes to save to store")
 			return
