@@ -1,7 +1,7 @@
 package amber
 
 import (
-	"github.com/PuerkitoBio/ghost"
+	"github.com/PuerkitoBio/ghost/templates"
 	"github.com/eknkc/amber"
 )
 
@@ -20,7 +20,7 @@ func NewAmberCompiler(opts amber.Options) *AmberCompiler {
 }
 
 // Implementation of the TemplateCompiler interface.
-func (this *AmberCompiler) Compile(f string) (ghost.Templater, error) {
+func (this *AmberCompiler) Compile(f string) (templates.Templater, error) {
 	// amber.CompileFile creates a new compiler each time. To limit the number
 	// of allocations, reuse a compiler.
 	if this.c == nil {
@@ -34,5 +34,5 @@ func (this *AmberCompiler) Compile(f string) (ghost.Templater, error) {
 }
 
 func init() {
-	ghost.Register(".amber", NewAmberCompiler(amber.DefaultOptions))
+	templates.Register(".amber", NewAmberCompiler(amber.DefaultOptions))
 }

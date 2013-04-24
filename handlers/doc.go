@@ -21,5 +21,5 @@
 //     receives a response (status code 500).
 // - StaticFileHandler(string) : serve the contents of a specific file.
 //
-// TODO : DynamicPageHandler, FaviconHandler.
+// TODO : FaviconHandler.
 package handlers

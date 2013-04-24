@@ -18,8 +18,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/PuerkitoBio/ghost"
 	"github.com/PuerkitoBio/ghost/handlers"
+	"github.com/PuerkitoBio/ghost/templates"
 	_ "github.com/PuerkitoBio/ghost/templates/amber"
 	_ "github.com/PuerkitoBio/ghost/templates/gotpl"
 	"github.com/bmizerany/pat"
@@ -63,8 +63,7 @@ var (
 			} else {
 				data = sessionPageInfo{title, "[nil]"}
 			}
-			w.Header().Set("Content-Type", "text/html")
-			err := ghost.Execute("templates/session.tmpl", w, data)
+			err := templates.Render("templates/session.tmpl", w, data)
 			if err != nil {
 				panic(err)
 			}
@@ -98,7 +97,7 @@ func main() {
 
 	// Compile the dynamic templates (native Go templates are registered via the
 	// for-side-effects-only import of gotpl)
-	err := ghost.CompileDir("./templates/")
+	err := templates.CompileDir("./templates/", true)
 	if err != nil {
 		panic(err)
 	}
@@ -130,13 +129,12 @@ func main() {
 			if !ok {
 				panic("no context")
 			}
-			w.Header().Set("Content-Type", "text/html")
-			err := ghost.Execute("templates/context.amber", w, &struct{ Val string }{ctx["time"].(string)})
+			err := templates.Render("templates/amber/context.amber", w, &struct{ Val string }{ctx["time"].(string)})
 			if err != nil {
 				panic(err)
 			}
 		})
-	mux.Get("/context", handlers.ContextHandler(ghost.ChainHandlers(hCtx1, hCtx2), 1))
+	mux.Get("/context", handlers.ContextHandler(handlers.ChainHandlers(hCtx1, hCtx2), 1))
 
 	// Set the panic route, which simply panics
 	mux.Get("/panic", http.HandlerFunc(
