@@ -42,7 +42,7 @@ func TestGzippedAuth(t *testing.T) {
 			return u + pwd, true
 		}
 		return nil, false
-	}, ""))
+	}, ""), nil)
 
 	s := httptest.NewServer(h)
 	defer s.Close()

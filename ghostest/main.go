@@ -146,7 +146,8 @@ func main() {
 	h := handlers.PanicHandler(
 		handlers.LogHandler(
 			handlers.GZIPHandler(
-				mux),
+				mux,
+				nil),
 			handlers.NewLogOptions(nil, handlers.Ltiny)),
 		nil)
 

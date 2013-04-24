@@ -24,7 +24,7 @@ func TestServeFile(t *testing.T) {
 }
 
 func TestGzippedFile(t *testing.T) {
-	h := GZIPHandler(StaticFileHandler("./testdata/styles.css"))
+	h := GZIPHandler(StaticFileHandler("./testdata/styles.css"), nil)
 	s := httptest.NewServer(h)
 	defer s.Close()
 

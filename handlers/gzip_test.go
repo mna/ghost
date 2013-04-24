@@ -16,7 +16,7 @@ func TestGzipped(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-		}))
+		}), nil)
 	s := httptest.NewServer(h)
 	defer s.Close()
 
@@ -46,7 +46,7 @@ func TestNoGzip(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-		}))
+		}), nil)
 	s := httptest.NewServer(h)
 	defer s.Close()
 
@@ -70,7 +70,7 @@ func TestGzipOuterPanic(t *testing.T) {
 		GZIPHandler(http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				panic(msg)
-			})), nil)
+			}), nil), nil)
 	s := httptest.NewServer(h)
 	defer s.Close()
 

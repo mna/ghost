@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
-	"strings"
 )
 
 // Thanks to Andrew Gerrand for inspiration:
@@ -22,11 +21,13 @@ type gzipResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
 	encodingSet bool
+	filterFn    func(http.ResponseWriter, *http.Request) bool
 }
 
 // Unambiguous Write() implementation (otherwise both ResponseWriter and Writer
 // want to claim this method).
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	// TODO : Filter...
 	if !w.encodingSet {
 		setGzipHeaders(w.Header())
 		w.encodingSet = true
@@ -36,6 +37,7 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 
 // Intercept the WriteHeader call to correctly set the GZIP headers.
 func (w *gzipResponseWriter) WriteHeader(code int) {
+	// TODO : Filter...
 	if !w.encodingSet {
 		setGzipHeaders(w.Header())
 		w.encodingSet = true
@@ -48,15 +50,36 @@ func (w *gzipResponseWriter) WrappedWriter() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
+// Default filter to check if the response should be GZIPped.
+// By default, all text (html, css, xml, ...), javascript and json
+// content types are candidates for GZIP.
+func defaultFilter(w http.ResponseWriter, r *http.Request) bool {
+	hdr := w.Header()
+	ok := HeaderMatch(hdr, "Content-Type", HmContains, "text")
+	if !ok {
+		ok = HeaderMatch(hdr, "Content-Type", HmContains, "javascript")
+		if !ok {
+			ok = HeaderMatch(hdr, "Content-Type", HmContains, "json")
+		}
+	}
+	return ok
+}
+
 // GZIPHandlerFunc is the same as GZIPHandler, it is just a convenience
 // signature that accepts a func(http.ResponseWriter, *http.Request) instead of
 // a http.Handler interface. It saves the boilerplate http.HandlerFunc() cast.
-func GZIPHandlerFunc(h http.HandlerFunc) http.HandlerFunc {
-	return GZIPHandler(h)
+func GZIPHandlerFunc(h http.HandlerFunc, filterFn func(http.ResponseWriter, *http.Request) bool) http.HandlerFunc {
+	return GZIPHandler(h, filterFn)
 }
 
-// Gzip compression HTTP handler.
-func GZIPHandler(h http.Handler) http.HandlerFunc {
+// Gzip compression HTTP handler. If the client supports it, it compresses the response
+// written by the wrapped handler. The filter function is called when the response is about
+// to be written to determine if compression should be applied. If this argument is nil,
+// the default filter will GZIP only content types containing /json|text|javascript/.
+func GZIPHandler(h http.Handler, filterFn func(http.ResponseWriter, *http.Request) bool) http.HandlerFunc {
+	if filterFn == nil {
+		filterFn = defaultFilter
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := getGzipWriter(w); ok {
 			// Self-awareness, gzip handler is already set up
@@ -66,20 +89,18 @@ func GZIPHandler(h http.Handler) http.HandlerFunc {
 		hdr := w.Header()
 		setVaryHeader(hdr)
 
-		// Do nothing on a HEAD request or if no accept-encoding is specified on the request
-		acc, ok := r.Header["Accept-Encoding"]
-		if r.Method == "HEAD" || !ok {
+		// Do nothing on a HEAD request
+		if r.Method == "HEAD" {
 			h.ServeHTTP(w, r)
 			return
 		}
-		if !acceptsGzip(acc) {
+		if !acceptsGzip(r.Header) {
 			// No gzip support from the client, return uncompressed
 			h.ServeHTTP(w, r)
 			return
 		}
 
 		// Prepare a gzip response container
-		// TODO : Only if Content-Type is json/html/text?
 		gz := gzip.NewWriter(w)
 		h.ServeHTTP(
 			&gzipResponseWriter{
@@ -92,30 +113,20 @@ func GZIPHandler(h http.Handler) http.HandlerFunc {
 	}
 }
 
-// TODO : Generic header search function.
+// Add the vary by "accept-encoding" header if it is not already set.
 func setVaryHeader(hdr http.Header) {
-	// Manage the Vary header field
-	vary := hdr["Vary"]
-	ok := false
-	for _, v := range vary {
-		if strings.ToLower(v) == "accept-encoding" {
-			ok = true
-		}
-	}
-	if !ok {
+	if !HeaderMatch(hdr, "Vary", HmContains, "accept-encoding") {
 		hdr.Add("Vary", "Accept-Encoding")
 	}
 }
 
 // Checks if the client accepts GZIP-encoded responses.
-func acceptsGzip(acc []string) bool {
-	for _, v := range acc {
-		trimmed := strings.ToLower(strings.Trim(v, " "))
-		if trimmed == "*" || strings.Contains(trimmed, "gzip") {
-			return true
-		}
+func acceptsGzip(hdr http.Header) bool {
+	ok := HeaderMatch(hdr, "Accept-Encoding", HmContains, "gzip")
+	if !ok {
+		ok = HeaderMatch(hdr, "Accept-Encoding", HmEquals, "*")
 	}
-	return false
+	return ok
 }
 
 func setGzipHeaders(hdr http.Header) {
