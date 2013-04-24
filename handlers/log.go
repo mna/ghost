@@ -90,31 +90,37 @@ func NewLogOptions(l func(string, ...interface{}), ft string, tok ...string) *Lo
 	}
 }
 
+// LogHandlerFunc is the same as LogHandler, it is just a convenience
+// signature that accepts a func(http.ResponseWriter, *http.Request) instead of
+// a http.Handler interface. It saves the boilerplate http.HandlerFunc() cast.
+func LogHandlerFunc(h http.HandlerFunc, opts *LogOptions) http.HandlerFunc {
+	return LogHandler(h, opts)
+}
+
 // Create a log handler for every request it receives.
-func LogHandler(h http.Handler, opts *LogOptions) http.Handler {
-	return http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := getStatusWriter(w); ok {
-				// Self-awareness, logging handler already set up
-				h.ServeHTTP(w, r)
-				return
-			}
+func LogHandler(h http.Handler, opts *LogOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getStatusWriter(w); ok {
+			// Self-awareness, logging handler already set up
+			h.ServeHTTP(w, r)
+			return
+		}
 
-			// Save the response start time
-			st := time.Now()
-			// Call the wrapped handler, with the augmented ResponseWriter to handle the status code
-			stw := &statusResponseWriter{w, 0, ""}
+		// Save the response start time
+		st := time.Now()
+		// Call the wrapped handler, with the augmented ResponseWriter to handle the status code
+		stw := &statusResponseWriter{w, 0, ""}
 
-			// Log immediately if requested, otherwise on exit
-			if opts.Immediate {
-				logRequest(stw, r, st, opts)
-			} else {
-				// Store original URL, may get modified by handlers (i.e. StripPrefix)
-				stw.oriURL = r.URL.String()
-				defer logRequest(stw, r, st, opts)
-			}
-			h.ServeHTTP(stw, r)
-		})
+		// Log immediately if requested, otherwise on exit
+		if opts.Immediate {
+			logRequest(stw, r, st, opts)
+		} else {
+			// Store original URL, may get modified by handlers (i.e. StripPrefix)
+			stw.oriURL = r.URL.String()
+			defer logRequest(stw, r, st, opts)
+		}
+		h.ServeHTTP(stw, r)
+	}
 }
 
 // Check if the specified token is a predefined one, and if so return its current value.

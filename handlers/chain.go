@@ -9,11 +9,16 @@ import (
 type ChainableHandler interface {
 	http.Handler
 	Chain(http.Handler) ChainableHandler
+	ChainFunc(http.HandlerFunc) ChainableHandler
 }
 
 // Default implementation of a simple ChainableHandler
 type chainHandler struct {
 	http.Handler
+}
+
+func (this *chainHandler) ChainFunc(h http.HandlerFunc) ChainableHandler {
+	return this.Chain(h)
 }
 
 // Implementation of the ChainableHandler interface, calls the chained handler
@@ -32,6 +37,17 @@ func (this *chainHandler) Chain(h http.Handler) ChainableHandler {
 func NewChainableHandler(h http.Handler) ChainableHandler {
 	return &chainHandler{
 		h,
+	}
+}
+
+// Helper function to chain multiple handler functions in a single call.
+func ChainHandlerFuncs(h ...http.HandlerFunc) ChainableHandler {
+	return &chainHandler{
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for _, v := range h {
+				v(w, r)
+			}
+		}),
 	}
 }
 

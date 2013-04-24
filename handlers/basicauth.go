@@ -40,51 +40,58 @@ func BadRequest(w http.ResponseWriter, msg string) {
 	w.Write([]byte(msg))
 }
 
+// BasicAuthHandlerFunc is the same as BasicAuthHandler, it is just a convenience
+// signature that accepts a func(http.ResponseWriter, *http.Request) instead of
+// a http.Handler interface. It saves the boilerplate http.HandlerFunc() cast.
+func BasicAuthHandlerFunc(h http.HandlerFunc,
+	authFn func(string, string) (interface{}, bool), realm string) http.HandlerFunc {
+	return BasicAuthHandler(h, authFn, realm)
+}
+
 // Returns a Basic Authentication handler, protecting the wrapped handler from
 // being accessed if the authentication function is not successful.
 func BasicAuthHandler(h http.Handler,
-	authFn func(string, string) (interface{}, bool), realm string) http.Handler {
+	authFn func(string, string) (interface{}, bool), realm string) http.HandlerFunc {
 
 	if realm == "" {
 		realm = "Authorization Required"
 	}
-	return http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			// Self-awareness
-			if _, ok := GetUser(w); ok {
-				h.ServeHTTP(w, r)
-				return
-			}
-			authInfo := r.Header.Get("Authorization")
-			if authInfo == "" {
-				// No authorization info, return 401
-				Unauthorized(w, realm)
-				return
-			}
-			parts := strings.Split(authInfo, " ")
-			if len(parts) != 2 {
-				BadRequest(w, "Bad authorization header")
-				return
-			}
-			scheme := parts[0]
-			creds, err := base64.StdEncoding.DecodeString(parts[1])
-			if err != nil {
-				BadRequest(w, "Bad credentials encoding")
-			}
-			index := bytes.Index(creds, []byte(":"))
-			if scheme != "Basic" || index < 0 {
-				BadRequest(w, "Bad authorization header")
-			}
-			user, pwd := string(creds[:index]), string(creds[index+1:])
-			udata, ok := authFn(user, pwd)
-			if ok {
-				// Save user data and continue
-				uw := &userResponseWriter{w, udata, user}
-				h.ServeHTTP(uw, r)
-			} else {
-				Unauthorized(w, realm)
-			}
-		})
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Self-awareness
+		if _, ok := GetUser(w); ok {
+			h.ServeHTTP(w, r)
+			return
+		}
+		authInfo := r.Header.Get("Authorization")
+		if authInfo == "" {
+			// No authorization info, return 401
+			Unauthorized(w, realm)
+			return
+		}
+		parts := strings.Split(authInfo, " ")
+		if len(parts) != 2 {
+			BadRequest(w, "Bad authorization header")
+			return
+		}
+		scheme := parts[0]
+		creds, err := base64.StdEncoding.DecodeString(parts[1])
+		if err != nil {
+			BadRequest(w, "Bad credentials encoding")
+		}
+		index := bytes.Index(creds, []byte(":"))
+		if scheme != "Basic" || index < 0 {
+			BadRequest(w, "Bad authorization header")
+		}
+		user, pwd := string(creds[:index]), string(creds[index+1:])
+		udata, ok := authFn(user, pwd)
+		if ok {
+			// Save user data and continue
+			uw := &userResponseWriter{w, udata, user}
+			h.ServeHTTP(uw, r)
+		} else {
+			Unauthorized(w, realm)
+		}
+	}
 }
 
 // Return the currently authenticated user. This is the same data that was returned

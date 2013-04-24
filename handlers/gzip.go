@@ -48,42 +48,48 @@ func (w *gzipResponseWriter) WrappedWriter() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
+// GZIPHandlerFunc is the same as GZIPHandler, it is just a convenience
+// signature that accepts a func(http.ResponseWriter, *http.Request) instead of
+// a http.Handler interface. It saves the boilerplate http.HandlerFunc() cast.
+func GZIPHandlerFunc(h http.HandlerFunc) http.HandlerFunc {
+	return GZIPHandler(h)
+}
+
 // Gzip compression HTTP handler.
-func GZIPHandler(h http.Handler) http.Handler {
-	return http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := getGzipWriter(w); ok {
-				// Self-awareness, gzip handler is already set up
-				h.ServeHTTP(w, r)
-				return
-			}
-			hdr := w.Header()
-			setVaryHeader(hdr)
+func GZIPHandler(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getGzipWriter(w); ok {
+			// Self-awareness, gzip handler is already set up
+			h.ServeHTTP(w, r)
+			return
+		}
+		hdr := w.Header()
+		setVaryHeader(hdr)
 
-			// Do nothing on a HEAD request or if no accept-encoding is specified on the request
-			acc, ok := r.Header["Accept-Encoding"]
-			if r.Method == "HEAD" || !ok {
-				h.ServeHTTP(w, r)
-				return
-			}
-			if !acceptsGzip(acc) {
-				// No gzip support from the client, return uncompressed
-				h.ServeHTTP(w, r)
-				return
-			}
+		// Do nothing on a HEAD request or if no accept-encoding is specified on the request
+		acc, ok := r.Header["Accept-Encoding"]
+		if r.Method == "HEAD" || !ok {
+			h.ServeHTTP(w, r)
+			return
+		}
+		if !acceptsGzip(acc) {
+			// No gzip support from the client, return uncompressed
+			h.ServeHTTP(w, r)
+			return
+		}
 
-			// Prepare a gzip response container
-			// TODO : Only if Content-Type is json/html/text?
-			gz := gzip.NewWriter(w)
-			h.ServeHTTP(
-				&gzipResponseWriter{
-					Writer:         gz,
-					ResponseWriter: w,
-				}, r)
-			// Iff the handler completed successfully (no panic), close the gzip writer,
-			// which seems to generate a Write to the underlying writer.
-			gz.Close()
-		})
+		// Prepare a gzip response container
+		// TODO : Only if Content-Type is json/html/text?
+		gz := gzip.NewWriter(w)
+		h.ServeHTTP(
+			&gzipResponseWriter{
+				Writer:         gz,
+				ResponseWriter: w,
+			}, r)
+		// Iff the handler completed successfully (no panic), close the gzip writer,
+		// which seems to generate a Write to the underlying writer.
+		gz.Close()
+	}
 }
 
 // TODO : Generic header search function.

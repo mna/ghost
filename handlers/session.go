@@ -25,7 +25,6 @@ var (
 type Session struct {
 	id   string
 	Data map[string]interface{} // JSON cannot marshal a map[interface{}]interface{}
-	// TODO : If MaxAge or Expires field, flag as json-ignore or internal fields?
 }
 
 // Create a new Session instance. It panics in the unlikely event that a new random ID cannot be generated.
@@ -45,9 +44,8 @@ func (this *Session) ID() string {
 	return this.id
 }
 
-// Resets the max age property of the session to its original value (sliding expiration).
+// TODO : Resets the max age property of the session to its original value (sliding expiration).
 func (this *Session) resetMaxAge() {
-	//this.maxAge = this.originalMaxAge
 }
 
 // Options object for the session handler. It specified the Session store to use for
@@ -103,8 +101,15 @@ func (this *sessResponseWriter) WriteHeader(code int) {
 	this.ResponseWriter.WriteHeader(code)
 }
 
+// SessionHandlerFunc is the same as SessionHandler, it is just a convenience
+// signature that accepts a func(http.ResponseWriter, *http.Request) instead of
+// a http.Handler interface. It saves the boilerplate http.HandlerFunc() cast.
+func SessionHandlerFunc(h http.HandlerFunc, opts *SessionOptions) http.HandlerFunc {
+	return SessionHandler(h, opts)
+}
+
 // Create a Session handler to offer the Session behaviour to the specified handler.
-func SessionHandler(h http.Handler, opts *SessionOptions) http.Handler {
+func SessionHandler(h http.Handler, opts *SessionOptions) http.HandlerFunc {
 	// Make sure the required cookie fields are set
 	if opts.CookieTemplate.Name == "" {
 		opts.CookieTemplate.Name = defaultCookieName
@@ -118,99 +123,99 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.Handler {
 	}
 
 	// Return the actual handler
-	return http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := getSessionWriter(w); ok {
-				// Self-awareness
-				h.ServeHTTP(w, r)
-				return
-			}
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getSessionWriter(w); ok {
+			// Self-awareness
+			h.ServeHTTP(w, r)
+			return
+		}
 
-			if strings.Index(r.URL.Path, opts.CookieTemplate.Path) != 0 {
-				// Session does not apply to this path
-				h.ServeHTTP(w, r)
-				return
-			}
-			// Create a new Session or retrieve the existing session based on the
-			// session cookie received.
-			var sess *Session
-			var ckSessId string
+		if strings.Index(r.URL.Path, opts.CookieTemplate.Path) != 0 {
+			// Session does not apply to this path
+			h.ServeHTTP(w, r)
+			return
+		}
+		// Create a new Session or retrieve the existing session based on the
+		// session cookie received.
+		var sess *Session
+		var ckSessId string
 
-			exCk, err := r.Cookie(opts.CookieTemplate.Name)
+		exCk, err := r.Cookie(opts.CookieTemplate.Name)
+		if err != nil {
+			sess = newSession()
+			ghost.LogFn("ghost.session : error getting session cookie : %s", err)
+		} else {
+			ckSessId, err = parseSignedCookie(exCk, opts.Secret)
 			if err != nil {
 				sess = newSession()
-				ghost.LogFn("ghost.session : error getting session cookie : %s", err)
+				ghost.LogFn("ghost.session : error parsing signed cookie : %s", err)
+			} else if ckSessId == "" {
+				sess = newSession()
+				ghost.LogFn("ghost.session : no existing session ID")
 			} else {
-				ckSessId, err = parseSignedCookie(exCk, opts.Secret)
+				// Get the session
+				sess, err = opts.Store.Get(ckSessId)
 				if err != nil {
 					sess = newSession()
-					ghost.LogFn("ghost.session : error parsing signed cookie : %s", err)
-				} else if ckSessId == "" {
+					ghost.LogFn("ghost.session : error getting session from store : %s", err)
+				} else if sess == nil {
 					sess = newSession()
-					ghost.LogFn("ghost.session : no existing session ID")
-				} else {
-					// Get the session
-					sess, err = opts.Store.Get(ckSessId)
-					if err != nil {
-						sess = newSession()
-						ghost.LogFn("ghost.session : error getting session from store : %s", err)
-					} else if sess == nil {
-						sess = newSession()
-						ghost.LogFn("ghost.session : nil session")
-					}
+					ghost.LogFn("ghost.session : nil session")
 				}
 			}
-			// Save the original hash of the session, used to compare if the contents
-			// have changed during the handling of the request, so that it has to be
-			// saved to the stored.
-			oriHash := hash(sess)
+		}
+		// Save the original hash of the session, used to compare if the contents
+		// have changed during the handling of the request, so that it has to be
+		// saved to the stored.
+		oriHash := hash(sess)
 
-			// Create the augmented ResponseWriter.
-			srw := &sessResponseWriter{w, sess, opts.Store, false, func() {
-				// This function is called when the header is about to be written, so that
-				// the session cookie is correctly set.
+		// Create the augmented ResponseWriter.
+		var isNew bool
+		srw := &sessResponseWriter{w, sess, opts.Store, false, func() {
+			// This function is called when the header is about to be written, so that
+			// the session cookie is correctly set.
 
-				// Check if the connection is secure
-				proto := strings.Trim(strings.ToLower(r.Header.Get("X-Forwarded-Proto")), " ")
-				tls := r.TLS != nil || (strings.HasPrefix(proto, "https") && opts.TrustProxy)
-				if opts.CookieTemplate.Secure && !tls {
-					ghost.LogFn("ghost.session : secure cookie on a non-secure connection, cookie not sent")
-					return
-				}
-				isNew := ckSessId != sess.ID()
-				if !isNew {
-					// If this is not a new session, no need to send back the cookie
-					// TODO : Handle expires?
-					return
-				}
+			// Check if the connection is secure
+			proto := strings.Trim(strings.ToLower(r.Header.Get("X-Forwarded-Proto")), " ")
+			tls := r.TLS != nil || (strings.HasPrefix(proto, "https") && opts.TrustProxy)
+			if opts.CookieTemplate.Secure && !tls {
+				ghost.LogFn("ghost.session : secure cookie on a non-secure connection, cookie not sent")
+				return
+			}
+			isNew = ckSessId != sess.ID()
+			if !isNew {
+				// If this is not a new session, no need to send back the cookie
+				// TODO : Handle expires?
+				return
+			}
 
-				// Send the session cookie
-				ck := opts.CookieTemplate
-				ck.Value = sess.ID()
-				err := signCookie(&ck, opts.Secret)
-				if err != nil {
-					ghost.LogFn("ghost.session : error signing cookie : %s", err)
-					return
-				}
-				http.SetCookie(w, &ck)
-			}}
+			// Send the session cookie
+			ck := opts.CookieTemplate
+			ck.Value = sess.ID()
+			err := signCookie(&ck, opts.Secret)
+			if err != nil {
+				ghost.LogFn("ghost.session : error signing cookie : %s", err)
+				return
+			}
+			http.SetCookie(w, &ck)
+		}}
 
-			defer func() {
-				// TODO : Expiration management? srw.sess.resetMaxAge()
-				if newHash := hash(sess); oriHash == newHash && newHash != 0 {
-					// No changes to the session, no need to save
-					ghost.LogFn("ghost.session : no changes to save to store")
-					return
-				}
-				err := opts.Store.Set(sess.ID(), sess)
-				if err != nil {
-					ghost.LogFn("ghost.session : error saving session to store : %s", err)
-				}
-			}()
+		// Call wrapped handler
+		h.ServeHTTP(srw, r)
 
-			// Call wrapped handler
-			h.ServeHTTP(srw, r)
-		})
+		// TODO : Expiration management? srw.sess.resetMaxAge()
+		// Do not save if content is the same, unless session is new (to avoid
+		// creating a new session and sending a cookie on each successive request).
+		if newHash := hash(sess); !isNew && oriHash == newHash && newHash != 0 {
+			// No changes to the session, no need to save
+			ghost.LogFn("ghost.session : no changes to save to store")
+			return
+		}
+		err = opts.Store.Set(sess.ID(), sess)
+		if err != nil {
+			ghost.LogFn("ghost.session : error saving session to store : %s", err)
+		}
+	}
 }
 
 // Helper function to retrieve the session for the current request.

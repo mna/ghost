@@ -37,41 +37,39 @@ var (
 	secret   = "testimony of the ancients"
 
 	// Create the common session handler function
-	fnSsnH = http.HandlerFunc(
-		// The custom handler that renders the dynamic page
-		func(w http.ResponseWriter, r *http.Request) {
-			ssn, ok := handlers.GetSession(w)
-			if !ok {
-				panic("no session")
-			}
-			var txt interface{}
-			if r.Method == "GET" {
-				txt = ssn.Data[sessionPageKey]
-			} else {
-				txt = r.FormValue(sessionPageKey)
-				ssn.Data[sessionPageKey] = txt
-			}
-			var data sessionPageInfo
-			var title string
-			if r.URL.Path == "/session/auth" {
-				title = sessionPageAuthTitle
-			} else {
-				title = sessionPageTitle
-			}
-			if txt != nil {
-				data = sessionPageInfo{title, txt.(string)}
-			} else {
-				data = sessionPageInfo{title, "[nil]"}
-			}
-			err := templates.Render("templates/session.tmpl", w, data)
-			if err != nil {
-				panic(err)
-			}
-		})
+	fnSsnH = func(w http.ResponseWriter, r *http.Request) {
+		ssn, ok := handlers.GetSession(w)
+		if !ok {
+			panic("no session")
+		}
+		var txt interface{}
+		if r.Method == "GET" {
+			txt = ssn.Data[sessionPageKey]
+		} else {
+			txt = r.FormValue(sessionPageKey)
+			ssn.Data[sessionPageKey] = txt
+		}
+		var data sessionPageInfo
+		var title string
+		if r.URL.Path == "/session/auth" {
+			title = sessionPageAuthTitle
+		} else {
+			title = sessionPageTitle
+		}
+		if txt != nil {
+			data = sessionPageInfo{title, txt.(string)}
+		} else {
+			data = sessionPageInfo{title, "[nil]"}
+		}
+		err := templates.Render("templates/session.tmpl", w, data)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	// The no-auth required handler
 	hSsn = handlers.SessionHandler(
-		handlers.ContextHandler(fnSsnH, 1),
+		handlers.ContextHandlerFunc(fnSsnH, 1),
 		handlers.NewSessionOptions(memStore, secret))
 
 	// The Auth-required handler
@@ -115,26 +113,24 @@ func main() {
 	mux.Post("/session/auth", hAuthSsn)
 
 	// Set the handler for the chained context route
-	hCtx1 := http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			ctx, ok := handlers.GetContext(w)
-			if !ok {
-				panic("no context")
-			}
-			ctx["time"] = time.Now().String()
-		})
-	hCtx2 := http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			ctx, ok := handlers.GetContext(w)
-			if !ok {
-				panic("no context")
-			}
-			err := templates.Render("templates/amber/context.amber", w, &struct{ Val string }{ctx["time"].(string)})
-			if err != nil {
-				panic(err)
-			}
-		})
-	mux.Get("/context", handlers.ContextHandler(handlers.ChainHandlers(hCtx1, hCtx2), 1))
+	hCtx1 := func(w http.ResponseWriter, r *http.Request) {
+		ctx, ok := handlers.GetContext(w)
+		if !ok {
+			panic("no context")
+		}
+		ctx["time"] = time.Now().String()
+	}
+	hCtx2 := func(w http.ResponseWriter, r *http.Request) {
+		ctx, ok := handlers.GetContext(w)
+		if !ok {
+			panic("no context")
+		}
+		err := templates.Render("templates/amber/context.amber", w, &struct{ Val string }{ctx["time"].(string)})
+		if err != nil {
+			panic(err)
+		}
+	}
+	mux.Get("/context", handlers.ContextHandler(handlers.ChainHandlerFuncs(hCtx1, hCtx2), 1))
 
 	// Set the panic route, which simply panics
 	mux.Get("/panic", http.HandlerFunc(
