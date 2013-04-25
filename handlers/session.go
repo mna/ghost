@@ -148,11 +148,11 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.HandlerFunc {
 			h.ServeHTTP(w, r)
 			return
 		}
+
 		// Create a new Session or retrieve the existing session based on the
 		// session cookie received.
 		var sess *Session
 		var ckSessId string
-
 		exCk, err := r.Cookie(opts.CookieTemplate.Name)
 		if err != nil {
 			sess = newSession(opts.CookieTemplate.MaxAge)
@@ -222,7 +222,7 @@ func SessionHandler(h http.Handler, opts *SessionOptions) http.HandlerFunc {
 			ghost.LogFn("ghost.session : no changes to save to store")
 			return
 		}
-		err = opts.Store.Set(sess.ID(), sess)
+		err = opts.Store.Set(sess)
 		if err != nil {
 			ghost.LogFn("ghost.session : error saving session to store : %s", err)
 		}
