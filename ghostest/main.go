@@ -11,6 +11,7 @@
 // /panic 							| panic;log;gzip;Custom; -> panics
 // /context 						| panic;log;gzip;context;Custom1;Custom2; -> serve dynamic Amber template
 //
+// TODO : Make look good (bootstrap?), clean code, tests all handlers
 package main
 
 import (
