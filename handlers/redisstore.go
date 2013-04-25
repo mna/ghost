@@ -22,8 +22,9 @@ type RedisStore struct {
 }
 
 func NewRedisStore(opts *RedisStoreOptions) *RedisStore {
+	var err error
 	rs := &RedisStore{opts, nil}
-	rs.conn, err := redis.DialTimeout(opts.Network, opts.Address, opts.ConnectTimeout,
+	rs.conn, err = redis.DialTimeout(opts.Network, opts.Address, opts.ConnectTimeout,
 		opts.ReadTimeout, opts.WriteTimeout)
 	if err != nil {
 		panic(err)
@@ -36,5 +37,6 @@ func (this *RedisStore) Get(id string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	_ = strSess
 	return nil, nil
 }

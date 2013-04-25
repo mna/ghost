@@ -157,7 +157,7 @@ func getPredefinedTokenValue(t string, w *statusResponseWriter, r *http.Request,
 		if mtch[1] == "req" {
 			return r.Header.Get(mtch[2]), true
 		} else {
-			// TODO : This only works for headers explicitly set via the Header() map of
+			// This only works for headers explicitly set via the Header() map of
 			// the writer, not those added by the http package under the covers.
 			return w.Header().Get(mtch[2]), true
 		}

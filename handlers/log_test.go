@@ -86,12 +86,10 @@ func TestLog(t *testing.T) {
 			Ldefault,
 			regexp.MustCompile(`^127\.0\.0\.1:\d+ - - \[\d{4}-\d{2}-\d{2}\] "GET / HTTP/1\.1" 200  "http://www\.test\.com" "Go \d+\.\d+ package http"\n$`),
 		},
-		// TODO : The next test fails, because only headers explicitly set through
-		// ResponseWriter.Header are available (not those written with the actual response)
-		/*"res[Content-Length]": {
+		testCase{"res[Content-Type]",
 			"%s",
 			regexp.MustCompile(`^text/plain\n$`),
-		},*/
+		},
 	}
 	for _, tc := range formats {
 		testLogCase(tc, t)
@@ -106,6 +104,7 @@ func testLogCase(tc testCase, t *testing.T) {
 	h := LogHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(100 * time.Millisecond)
+			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(200)
 			w.Write([]byte("body"))
 		}), opts)
