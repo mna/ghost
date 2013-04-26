@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/md5"
 	"github.com/PuerkitoBio/ghost"
 	"io/ioutil"
 	"net/http"
@@ -20,23 +21,26 @@ func FaviconHandlerFunc(h http.HandlerFunc, path string, maxAge time.Duration) h
 // https://github.com/senchalabs/connect
 func FaviconHandler(h http.Handler, path string, maxAge time.Duration) http.HandlerFunc {
 	var buf []byte
+	var hash string
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		if r.URL.Path == "/favicon.ico" {
 			if buf != nil {
 				// Serve from cache
-				writeHeaders(w.Header(), buf, maxAge)
+				writeHeaders(w.Header(), buf, maxAge, hash)
 				writeBody(w, r, buf)
 			} else {
 				// Read from file and cache
+				ghost.LogFn("ghost.favicon : serving from %s", path)
 				buf, err = ioutil.ReadFile(path)
 				if err != nil {
 					ghost.LogFn("ghost.favicon : error reading file : %s", err)
 					http.NotFound(w, r)
 					return
 				}
-				writeHeaders(w.Header(), buf, maxAge)
+				hash = hashContent(buf)
+				writeHeaders(w.Header(), buf, maxAge, hash)
 				writeBody(w, r, buf)
 			}
 		} else {
@@ -55,9 +59,16 @@ func writeBody(w http.ResponseWriter, r *http.Request, buf []byte) {
 	}
 }
 
-func writeHeaders(hdr http.Header, buf []byte, maxAge time.Duration) {
+// Correctly set the http headers.
+func writeHeaders(hdr http.Header, buf []byte, maxAge time.Duration, hash string) {
 	hdr.Set("Content-Type", "image/x-icon")
 	hdr.Set("Content-Length", strconv.Itoa(len(buf)))
-	hdr.Set("Etag", "") // TODO : MD5 hash, cached
+	hdr.Set("Etag", hash)
 	hdr.Set("Cache-Control", "public, max-age="+strconv.Itoa(int(maxAge.Seconds())))
+}
+
+// Get the MD5 hash of the content.
+func hashContent(buf []byte) string {
+	h := md5.New()
+	return string(h.Sum(buf))
 }
