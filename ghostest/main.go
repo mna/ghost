@@ -144,13 +144,16 @@ func main() {
 	// Log is next, so that every request is logged along with the URL, status code and response time.
 	// GZIP is then applied, so that content is compressed.
 	// Finally, the muxer finds the specific handler that applies to the route.
-	h := handlers.PanicHandler(
-		handlers.LogHandler(
-			handlers.GZIPHandler(
-				mux,
-				nil),
-			handlers.NewLogOptions(nil, handlers.Ltiny)),
-		nil)
+	h := handlers.FaviconHandler(
+		handlers.PanicHandler(
+			handlers.LogHandler(
+				handlers.GZIPHandler(
+					mux,
+					nil),
+				handlers.NewLogOptions(nil, handlers.Ltiny)),
+			nil),
+		"./public/favicon.ico",
+		48*time.Hour)
 
 	// Assign the combined handler to the server.
 	http.Handle("/", h)
