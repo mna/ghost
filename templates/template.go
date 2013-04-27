@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/PuerkitoBio/ghost"
 )
@@ -37,29 +38,16 @@ func Register(ext string, c TemplateCompiler) {
 // Compile all templates that have a matching compiler (based on their extension) in the
 // specified directory.
 func CompileDir(dir string, recursive bool) error {
-	f, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	fis, err := f.Readdir(0)
-	if err != nil {
-		return err
-	}
-	for _, fi := range fis {
-		// Handle sub-directories
-		if fi.IsDir() && recursive {
-			err = CompileDir(path.Join(dir, fi.Name()), recursive)
+	return filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
+		if !fi.IsDir() {
+			err = compileTemplate(path)
 			if err != nil {
-				return err
-			}
-		} else if !fi.IsDir() {
-			err = compileTemplate(path.Join(dir, fi.Name()))
-			if err != nil {
+				ghost.LogFn("ghost.templates : error compiling template %s : %s", path, err)
 				return err
 			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // Compile the specified template file if there is a matching compiler.
