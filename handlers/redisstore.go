@@ -1,9 +1,15 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
+)
+
+var (
+	ErrCannotGetKeysWithoutPrefix = errors.New("cannot get session keys without a key prefix")
 )
 
 type RedisStoreOptions struct {
@@ -33,10 +39,79 @@ func NewRedisStore(opts *RedisStoreOptions) *RedisStore {
 }
 
 func (this *RedisStore) Get(id string) (*Session, error) {
-	strSess, err := redis.String(this.conn.Do("GET", id))
+	key := id
+	if this.opts.KeyPrefix != "" {
+		key = this.opts.KeyPrefix + ":" + id
+	}
+	strSess, err := redis.String(this.conn.Do("GET", key))
 	if err != nil {
 		return nil, err
 	}
-	_ = strSess
-	return nil, nil
+	var sess Session
+	err = json.Unmarshal([]byte(strSess), &sess)
+	if err != nil {
+		return nil, err
+	}
+	return &sess, nil
+}
+
+func (this *RedisStore) Set(sess *Session) error {
+	bufSess, err := json.Marshal(sess)
+	if err != nil {
+		return err
+	}
+	key := sess.ID()
+	if this.opts.KeyPrefix != "" {
+		key = this.opts.KeyPrefix + ":" + sess.ID()
+	}
+	_, err = this.conn.Do("SETEX", key, int(sess.maxAge.Seconds()), string(bufSess))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (this *RedisStore) Delete(id string) error {
+	key := id
+	if this.opts.KeyPrefix != "" {
+		key = this.opts.KeyPrefix + ":" + id
+	}
+	_, err := this.conn.Do("DEL", key)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (this *RedisStore) Clear() error {
+	vals, err := this.getSessionKeys()
+	if err != nil {
+		return err
+	}
+	if len(vals) > 0 {
+		this.conn.Send("MULTI")
+		for _, v := range vals {
+			this.conn.Send("DEL", v)
+		}
+		_, err = this.conn.Do("EXEC")
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (this *RedisStore) Len() int {
+	vals, err := this.getSessionKeys()
+	if err != nil {
+		return -1
+	}
+	return len(vals)
+}
+
+func (this *RedisStore) getSessionKeys() ([]interface{}, error) {
+	if this.opts.KeyPrefix != "" {
+		return redis.Values(this.conn.Do("KEYS", this.opts.KeyPrefix+":*"))
+	}
+	return nil, ErrCannotGetKeysWithoutPrefix
 }
