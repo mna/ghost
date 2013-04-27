@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrCannotGetKeysWithoutPrefix = errors.New("cannot get session keys without a key prefix")
+	ErrNoKeyPrefix = errors.New("cannot get session keys without a key prefix")
 )
 
 type RedisStoreOptions struct {
@@ -113,5 +113,5 @@ func (this *RedisStore) getSessionKeys() ([]interface{}, error) {
 	if this.opts.KeyPrefix != "" {
 		return redis.Values(this.conn.Do("KEYS", this.opts.KeyPrefix+":*"))
 	}
-	return nil, ErrCannotGetKeysWithoutPrefix
+	return nil, ErrNoKeyPrefix
 }
