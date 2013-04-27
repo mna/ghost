@@ -37,7 +37,7 @@ func Register(ext string, c TemplateCompiler) {
 
 // Compile all templates that have a matching compiler (based on their extension) in the
 // specified directory.
-func CompileDir(dir string, recursive bool) error {
+func CompileDir(dir string) error {
 	return filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
 		if !fi.IsDir() {
 			err = compileTemplate(path)
