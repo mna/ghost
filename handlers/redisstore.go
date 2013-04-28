@@ -13,13 +13,14 @@ var (
 )
 
 type RedisStoreOptions struct {
-	Network        string
-	Address        string
-	ConnectTimeout time.Duration
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
-	Database       int
-	KeyPrefix      string
+	Network              string
+	Address              string
+	ConnectTimeout       time.Duration
+	ReadTimeout          time.Duration
+	WriteTimeout         time.Duration
+	Database             int
+	KeyPrefix            string
+	BrowserSessServerTTL time.Duration // Defaults to 2 days
 }
 
 type RedisStore struct {
@@ -52,6 +53,7 @@ func (this *RedisStore) Get(id string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	sess.id = id
 	return &sess, nil
 }
 
@@ -64,7 +66,15 @@ func (this *RedisStore) Set(sess *Session) error {
 	if this.opts.KeyPrefix != "" {
 		key = this.opts.KeyPrefix + ":" + sess.ID()
 	}
-	_, err = this.conn.Do("SETEX", key, int(sess.maxAge.Seconds()), string(bufSess))
+	ttl := sess.maxAge
+	if ttl == 0 {
+		// Browser session, set to specified TTL
+		ttl = this.opts.BrowserSessServerTTL
+		if ttl == 0 {
+			ttl = 2 * 24 * time.Hour // Default to 2 days
+		}
+	}
+	_, err = this.conn.Do("SETEX", key, int(ttl.Seconds()), string(bufSess))
 	if err != nil {
 		return err
 	}

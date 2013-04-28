@@ -11,12 +11,44 @@ import (
 )
 
 var (
-	memStore = NewMemoryStore(1)
-	secret   = "butchered at birth"
+	store  SessionStore
+	secret = "butchered at birth"
 )
 
+func TestSession(t *testing.T) {
+	stores := map[string]SessionStore{
+		"memory": NewMemoryStore(1),
+		"redis": NewRedisStore(&RedisStoreOptions{
+			Network:   "tcp",
+			Address:   ":6379",
+			Database:  1,
+			KeyPrefix: "sess",
+		}),
+	}
+	for k, v := range stores {
+		t.Logf("testing session with %s store\n", k)
+		store = v
+		t.Log("SessionExists")
+		testSessionExists(t)
+		t.Log("SessionPersists")
+		testSessionPersists(t)
+		t.Log("SessionExpires")
+		testSessionExpires(t)
+		t.Log("SessionBeforeExpires")
+		testSessionBeforeExpires(t)
+		t.Log("PanicIfNoSecret")
+		testPanicIfNoSecret(t)
+		t.Log("InvalidPath")
+		testInvalidPath(t)
+		t.Log("ValidSubPath")
+		testValidSubPath(t)
+		t.Log("SecureOverHttp")
+		testSecureOverHttp(t)
+	}
+}
+
 func setupTest(f func(w http.ResponseWriter, r *http.Request), ckPath string, secure bool, maxAge int) *httptest.Server {
-	opts := NewSessionOptions(memStore, secret)
+	opts := NewSessionOptions(store, secret)
 	if ckPath != "" {
 		opts.CookieTemplate.Path = ckPath
 	}
@@ -41,7 +73,7 @@ func doRequest(u string, newJar bool) *http.Response {
 	return res
 }
 
-func TestSessionExists(t *testing.T) {
+func testSessionExists(t *testing.T) {
 	s := setupTest(func(w http.ResponseWriter, r *http.Request) {
 		ssn, ok := GetSession(w)
 		if assertTrue(ok, "expected session to be non-nil, got nil", t) {
@@ -58,7 +90,7 @@ func TestSessionExists(t *testing.T) {
 	assertTrue(len(res.Cookies()) == 1, fmt.Sprintf("expected response to have 1 cookie, got %d", len(res.Cookies())), t)
 }
 
-func TestSessionPersists(t *testing.T) {
+func testSessionPersists(t *testing.T) {
 	cnt := 0
 	s := setupTest(func(w http.ResponseWriter, r *http.Request) {
 		ssn, ok := GetSession(w)
@@ -87,7 +119,7 @@ func TestSessionPersists(t *testing.T) {
 	assertTrue(len(res.Cookies()) == 0, fmt.Sprintf("expected 2nd response to have 0 cookie, got %d", len(res.Cookies())), t)
 }
 
-func TestSessionExpires(t *testing.T) {
+func testSessionExpires(t *testing.T) {
 	cnt := 0
 	s := setupTest(func(w http.ResponseWriter, r *http.Request) {
 		ssn, ok := GetSession(w)
@@ -126,19 +158,13 @@ func TestSessionExpires(t *testing.T) {
 	assertTrue(sid1 != sid2, "expected session IDs to be different, got same", t)
 }
 
-func TestSessionBeforeExpires(t *testing.T) {
-	cnt := 0
+func testSessionBeforeExpires(t *testing.T) {
 	s := setupTest(func(w http.ResponseWriter, r *http.Request) {
 		ssn, ok := GetSession(w)
 		if !ok {
 			panic("session not found!")
 		}
-		if cnt == 0 {
-			w.Write([]byte(ssn.ID()))
-			cnt++
-		} else {
-			w.Write([]byte(ssn.ID()))
-		}
+		w.Write([]byte(ssn.ID()))
 	}, "", false, 1) // Expire in 1 second
 	defer s.Close()
 
@@ -165,12 +191,12 @@ func TestSessionBeforeExpires(t *testing.T) {
 	assertTrue(sid1 == sid2, "expected session IDs to be the same, got different", t)
 }
 
-func TestPanicIfNoSecret(t *testing.T) {
+func testPanicIfNoSecret(t *testing.T) {
 	defer assertPanic(t)
 	SessionHandler(http.NotFoundHandler(), NewSessionOptions(nil, ""))
 }
 
-func TestInvalidPath(t *testing.T) {
+func testInvalidPath(t *testing.T) {
 	s := setupTest(func(w http.ResponseWriter, r *http.Request) {
 		_, ok := GetSession(w)
 		assertTrue(!ok, "expected session to be nil, got non-nil", t)
@@ -184,7 +210,7 @@ func TestInvalidPath(t *testing.T) {
 	assertTrue(len(res.Cookies()) == 0, fmt.Sprintf("expected response to have no cookie, got %d", len(res.Cookies())), t)
 }
 
-func TestValidSubPath(t *testing.T) {
+func testValidSubPath(t *testing.T) {
 	s := setupTest(func(w http.ResponseWriter, r *http.Request) {
 		_, ok := GetSession(w)
 		assertTrue(ok, "expected session to be non-nil, got nil", t)
@@ -198,7 +224,7 @@ func TestValidSubPath(t *testing.T) {
 	assertTrue(len(res.Cookies()) == 1, fmt.Sprintf("expected response to have 1 cookie, got %d", len(res.Cookies())), t)
 }
 
-func TestSecureOverHttp(t *testing.T) {
+func testSecureOverHttp(t *testing.T) {
 	s := setupTest(func(w http.ResponseWriter, r *http.Request) {
 		_, ok := GetSession(w)
 		assertTrue(ok, "expected session to be non-nil, got nil", t)
@@ -213,8 +239,8 @@ func TestSecureOverHttp(t *testing.T) {
 }
 
 // TODO : commented, certificate problem
-func xTestSecureOverHttps(t *testing.T) {
-	opts := NewSessionOptions(memStore, secret)
+func xtestSecureOverHttps(t *testing.T) {
+	opts := NewSessionOptions(store, secret)
 	opts.CookieTemplate.Secure = true
 	h := SessionHandler(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
