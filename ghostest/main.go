@@ -10,8 +10,6 @@
 // /session/auth : panic;log;gzip;session;context;basicAuth;Custom; -> serve dynamic template
 // /panic : panic;log;gzip;Custom; -> panics
 // /context : panic;log;gzip;context;Custom1;Custom2; -> serve dynamic Amber template
-//
-// TODO : Make look good (bootstrap?), clean code, tests all handlers
 package main
 
 import (
@@ -31,6 +29,7 @@ const (
 	sessionPageAuthTitle = "Authenticated Session Page"
 	sessionPageKey       = "txt"
 	contextPageKey       = "time"
+	sessionExpiration    = 10 // Session expires after 10 seconds
 )
 
 var (
@@ -118,11 +117,13 @@ func main() {
 
 	// Set the more complex routes for session handling and dynamic page (same
 	// handler is used for both GET and POST).
+	ssnOpts := handlers.NewSessionOptions(memStore, secret)
+	ssnOpts.CookieTemplate.MaxAge = sessionExpiration
 	hSsn := handlers.SessionHandler(
 		handlers.ContextHandlerFunc(
 			handlers.GhostHandlerFunc(sessionPageRenderer),
 			1),
-		handlers.NewSessionOptions(memStore, secret))
+		ssnOpts)
 	mux.Get("/session", hSsn)
 	mux.Post("/session", hSsn)
 

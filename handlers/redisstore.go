@@ -53,6 +53,7 @@ func (this *RedisStore) Get(id string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	// TODO : Better marshaling of the session to JSON
 	sess.id = id
 	return &sess, nil
 }
