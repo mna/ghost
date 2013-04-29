@@ -26,11 +26,7 @@ func FaviconHandler(h http.Handler, path string, maxAge time.Duration) http.Hand
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		if r.URL.Path == "/favicon.ico" {
-			if buf != nil {
-				// Serve from cache
-				writeHeaders(w.Header(), buf, maxAge, hash)
-				writeBody(w, r, buf)
-			} else {
+			if buf == nil {
 				// Read from file and cache
 				ghost.LogFn("ghost.favicon : serving from %s", path)
 				buf, err = ioutil.ReadFile(path)
@@ -40,9 +36,9 @@ func FaviconHandler(h http.Handler, path string, maxAge time.Duration) http.Hand
 					return
 				}
 				hash = hashContent(buf)
-				writeHeaders(w.Header(), buf, maxAge, hash)
-				writeBody(w, r, buf)
 			}
+			writeHeaders(w.Header(), buf, maxAge, hash)
+			writeBody(w, r, buf)
 		} else {
 			h.ServeHTTP(w, r)
 		}
