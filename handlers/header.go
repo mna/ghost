@@ -38,6 +38,7 @@ func HeaderMatch(hdr http.Header, nm string, matchType HeaderMatchType, test str
 			}
 		case HmEndsWith:
 			if strings.HasSuffix(v, test) {
+				return true
 			}
 		case HmContains:
 			if strings.Contains(v, test) {
