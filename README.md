@@ -31,7 +31,7 @@ Ghost offers the following handlers:
 
 Two stores are provided for the session persistence, `MemoryStore`, an in-memory map that is not suited for production environment, and `RedisStore`, a more robust and scalable [redigo][]-based Redis store. Because of the generic `SessionStore` interface, custom stores can easily be created as needed.
 
-The `handlers` package also offers the `ChainHandler` interface, which supports combining HTTP handlers in a sequential fashion, and the `ChainHandlers()` function that creates a new handler from the sequential combination of any number of handlers.
+The `handlers` package also offers the `ChainableHandler` interface, which supports combining HTTP handlers in a sequential fashion, and the `ChainHandlers()` function that creates a new handler from the sequential combination of any number of handlers.
 
 As a convenience, all functions that take a `http.Handler` as argument also have a corresponding function with the `Func` suffix that take a `http.HandlerFunc` instead as argument. This saves the type-cast when a simple handler function is passed (for example, `SessionHandler()` and `SessionHandlerFunc()`).
 
