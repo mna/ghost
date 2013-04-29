@@ -77,10 +77,12 @@ func BasicAuthHandler(h http.Handler,
 		creds, err := base64.StdEncoding.DecodeString(parts[1])
 		if err != nil {
 			BadRequest(w, "Bad credentials encoding")
+			return
 		}
 		index := bytes.Index(creds, []byte(":"))
 		if scheme != "Basic" || index < 0 {
 			BadRequest(w, "Bad authorization header")
+			return
 		}
 		user, pwd := string(creds[:index]), string(creds[index+1:])
 		udata, ok := authFn(user, pwd)
