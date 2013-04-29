@@ -59,19 +59,26 @@ func (w *gzipResponseWriter) WrappedWriter() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
+var (
+	defaultFilterTypes = [...]string{
+		"text",
+		"javascript",
+		"json",
+	}
+)
+
 // Default filter to check if the response should be GZIPped.
 // By default, all text (html, css, xml, ...), javascript and json
 // content types are candidates for GZIP.
 func defaultFilter(w http.ResponseWriter, r *http.Request) bool {
 	hdr := w.Header()
-	ok := HeaderMatch(hdr, "Content-Type", HmContains, "text")
-	if !ok {
-		ok = HeaderMatch(hdr, "Content-Type", HmContains, "javascript")
-		if !ok {
-			ok = HeaderMatch(hdr, "Content-Type", HmContains, "json")
+	for _, tp := range defaultFilterTypes {
+		ok := HeaderMatch(hdr, "Content-Type", HmContains, tp)
+		if ok {
+			return true
 		}
 	}
-	return ok
+	return false
 }
 
 // GZIPHandlerFunc is the same as GZIPHandler, it is just a convenience
