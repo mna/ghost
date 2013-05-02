@@ -55,8 +55,8 @@ func (this *MemoryStore) Set(sess *Session) error {
 		// Expire in the given time. If the maxAge is 0 (which means browser-session lifetime),
 		// expire in a reasonable delay, 2 days. The weird case of a negative maxAge will
 		// cause the immediate Delete call.
-		wait := sess.maxAge
-		if sess.maxAge == 0 {
+		wait := sess.MaxAge()
+		if wait == 0 {
 			wait = 2 * 24 * time.Hour
 		}
 		go func() {

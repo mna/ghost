@@ -24,13 +24,18 @@ var (
 // The information stored in this map should be marshalable for the target Session store
 // format (i.e. json, sql, gob, etc. depending on how the store persists the data).
 type Session struct {
-	Data map[string]interface{} // JSON cannot marshal a map[interface{}]interface{}
+	isNew bool // keep private, not saved to JSON, will be false once read from the store
+	internalSession
+}
 
-	// Internal fields
-	id      string
-	isNew   bool
-	created time.Time
-	maxAge  time.Duration
+// Use a separate private struct to hold the private fields of the Session,
+// although those fields are exposed (public). This is a trick to simplify
+// JSON encoding.
+type internalSession struct {
+	Data    map[string]interface{} // JSON cannot marshal a map[interface{}]interface{}
+	ID      string
+	Created time.Time
+	MaxAge  time.Duration
 }
 
 // Create a new Session instance. It panics in the unlikely event that a new random ID cannot be generated.
@@ -40,25 +45,48 @@ func newSession(maxAge int) *Session {
 		panic(ErrNoSessionID)
 	}
 	return &Session{
-		make(map[string]interface{}),
-		uid.String(),
-		true,
-		time.Now(),
-		time.Duration(maxAge) * time.Second,
+		true, // is new
+		internalSession{
+			make(map[string]interface{}),
+			uid.String(),
+			time.Now(),
+			time.Duration(maxAge) * time.Second,
+		},
 	}
 }
 
 // Gets the ID of the session.
-func (this *Session) ID() string {
-	return this.id
+func (ø *Session) ID() string {
+	return ø.internalSession.ID
 }
 
-func (this *Session) IsNew() bool {
-	return this.isNew
+// Get the max age duration
+func (ø *Session) MaxAge() time.Duration {
+	return ø.internalSession.MaxAge
+}
+
+// Get the creation time of the session.
+func (ø *Session) Created() time.Time {
+	return ø.internalSession.Created
+}
+
+// Is this a new Session (created by the current request)
+func (ø *Session) IsNew() bool {
+	return ø.isNew
 }
 
 // TODO : Resets the max age property of the session to its original value (sliding expiration).
-func (this *Session) resetMaxAge() {
+func (ø *Session) resetMaxAge() {
+}
+
+// Marshal the session to JSON.
+func (ø *Session) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ø.internalSession)
+}
+
+// Unmarshal the JSON into the internal session struct.
+func (ø *Session) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &ø.internalSession)
 }
 
 // Options object for the session handler. It specified the Session store to use for
@@ -92,26 +120,26 @@ type sessResponseWriter struct {
 }
 
 // Implement the WrapWriter interface.
-func (this *sessResponseWriter) WrappedWriter() http.ResponseWriter {
-	return this.ResponseWriter
+func (ø *sessResponseWriter) WrappedWriter() http.ResponseWriter {
+	return ø.ResponseWriter
 }
 
 // Intercept the Write() method to add the Set-Cookie header before it's too late.
-func (this *sessResponseWriter) Write(data []byte) (int, error) {
-	if !this.sessSent {
-		this.sendCookieFn()
-		this.sessSent = true
+func (ø *sessResponseWriter) Write(data []byte) (int, error) {
+	if !ø.sessSent {
+		ø.sendCookieFn()
+		ø.sessSent = true
 	}
-	return this.ResponseWriter.Write(data)
+	return ø.ResponseWriter.Write(data)
 }
 
 // Intercept the WriteHeader() method to add the Set-Cookie header before it's too late.
-func (this *sessResponseWriter) WriteHeader(code int) {
-	if !this.sessSent {
-		this.sendCookieFn()
-		this.sessSent = true
+func (ø *sessResponseWriter) WriteHeader(code int) {
+	if !ø.sessSent {
+		ø.sendCookieFn()
+		ø.sessSent = true
 	}
-	this.ResponseWriter.WriteHeader(code)
+	ø.ResponseWriter.WriteHeader(code)
 }
 
 // SessionHandlerFunc is the same as SessionHandler, it is just a convenience

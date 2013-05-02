@@ -18,8 +18,8 @@ type RedisStoreOptions struct {
 	ConnectTimeout       time.Duration
 	ReadTimeout          time.Duration
 	WriteTimeout         time.Duration
-	Database             int
-	KeyPrefix            string
+	Database             int           // Redis database to use for session keys
+	KeyPrefix            string        // If set, keys will be KeyPrefix:SessionID (semicolon added)
 	BrowserSessServerTTL time.Duration // Defaults to 2 days
 }
 
@@ -28,6 +28,7 @@ type RedisStore struct {
 	conn redis.Conn
 }
 
+// Create a redis session store with the specified options.
 func NewRedisStore(opts *RedisStoreOptions) *RedisStore {
 	var err error
 	rs := &RedisStore{opts, nil}
@@ -39,27 +40,27 @@ func NewRedisStore(opts *RedisStoreOptions) *RedisStore {
 	return rs
 }
 
+// Get the session from the store.
 func (this *RedisStore) Get(id string) (*Session, error) {
 	key := id
 	if this.opts.KeyPrefix != "" {
 		key = this.opts.KeyPrefix + ":" + id
 	}
-	strSess, err := redis.String(this.conn.Do("GET", key))
+	b, err := redis.Bytes(this.conn.Do("GET", key))
 	if err != nil {
 		return nil, err
 	}
 	var sess Session
-	err = json.Unmarshal([]byte(strSess), &sess)
+	err = json.Unmarshal(b, &sess)
 	if err != nil {
 		return nil, err
 	}
-	// TODO : Better marshaling of the session to JSON
-	sess.id = id
 	return &sess, nil
 }
 
+// Save the session into the store.
 func (this *RedisStore) Set(sess *Session) error {
-	bufSess, err := json.Marshal(sess)
+	b, err := json.Marshal(sess)
 	if err != nil {
 		return err
 	}
@@ -67,7 +68,7 @@ func (this *RedisStore) Set(sess *Session) error {
 	if this.opts.KeyPrefix != "" {
 		key = this.opts.KeyPrefix + ":" + sess.ID()
 	}
-	ttl := sess.maxAge
+	ttl := sess.MaxAge()
 	if ttl == 0 {
 		// Browser session, set to specified TTL
 		ttl = this.opts.BrowserSessServerTTL
@@ -75,13 +76,14 @@ func (this *RedisStore) Set(sess *Session) error {
 			ttl = 2 * 24 * time.Hour // Default to 2 days
 		}
 	}
-	_, err = this.conn.Do("SETEX", key, int(ttl.Seconds()), string(bufSess))
+	_, err = this.conn.Do("SETEX", key, int(ttl.Seconds()), b)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+// Delete the session from the store.
 func (this *RedisStore) Delete(id string) error {
 	key := id
 	if this.opts.KeyPrefix != "" {
@@ -94,6 +96,8 @@ func (this *RedisStore) Delete(id string) error {
 	return nil
 }
 
+// Clear all sessions from the store. Requires the use of a key
+// prefix in the store options, otherwise the method refuses to delete all keys.
 func (this *RedisStore) Clear() error {
 	vals, err := this.getSessionKeys()
 	if err != nil {
@@ -112,6 +116,9 @@ func (this *RedisStore) Clear() error {
 	return nil
 }
 
+// Get the number of session keys in the store. Requires the use of a
+// key prefix in the store options, otherwise returns -1 (cannot tell
+// session keys from other keys).
 func (this *RedisStore) Len() int {
 	vals, err := this.getSessionKeys()
 	if err != nil {
