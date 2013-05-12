@@ -39,6 +39,9 @@ func Register(ext string, c TemplateCompiler) {
 // specified directory.
 func CompileDir(dir string) error {
 	return filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
+		if fi == nil {
+			return fmt.Errorf("directory %s does not exist", path)
+		}
 		if !fi.IsDir() {
 			err = compileTemplate(path)
 			if err != nil {
