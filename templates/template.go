@@ -1,7 +1,7 @@
 package templates
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -12,6 +12,9 @@ import (
 )
 
 var (
+	ErrTemplateNotExist = errors.New("template does not exist")
+	ErrDirNotExist      = errors.New("directory does not exist")
+
 	compilers  = make(map[string]TemplateCompiler)
 	templaters = make(map[string]Templater)
 )
@@ -40,7 +43,7 @@ func Register(ext string, c TemplateCompiler) {
 func CompileDir(dir string) error {
 	return filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
 		if fi == nil {
-			return fmt.Errorf("directory %s does not exist", path)
+			return ErrDirNotExist
 		}
 		if !fi.IsDir() {
 			err = compileTemplate(path)
@@ -73,15 +76,20 @@ func compileTemplate(p string) error {
 func Execute(tplName string, w io.Writer, data interface{}) error {
 	t, ok := templaters[tplName]
 	if !ok {
-		return fmt.Errorf("no template found for file %s", tplName)
+		return ErrTemplateNotExist
 	}
 	return t.Execute(w, data)
 }
 
 // Render is the same as Execute, except that it takes a http.ResponseWriter
 // instead of a generic io.Writer, and sets the Content-Type to text/html.
-func Render(tplName string, w http.ResponseWriter, data interface{}) error {
+func Render(tplName string, w http.ResponseWriter, data interface{}) (err error) {
 	w.Header().Set("Content-Type", "text/html")
+	defer func() {
+		if err != nil {
+			w.Header().Del("Content-Type")
+		}
+	}()
 	return Execute(tplName, w, data)
 }
 
