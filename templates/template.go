@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 
 	"github.com/PuerkitoBio/ghost"
 )
@@ -15,9 +16,23 @@ var (
 	ErrTemplateNotExist = errors.New("template does not exist")
 	ErrDirNotExist      = errors.New("directory does not exist")
 
-	compilers  = make(map[string]TemplateCompiler)
+	compilers = make(map[string]TemplateCompiler)
+
+	// The mutex guards the templaters map
+	mu         sync.RWMutex
 	templaters = make(map[string]Templater)
 )
+
+// Defines the interface that the template compiler must return. The Go native
+// templates implement this interface.
+type Templater interface {
+	Execute(wr io.Writer, data interface{}) error
+}
+
+// The interface that a template engine must implement to be used by Ghost.
+type TemplateCompiler interface {
+	Compile(fileName string) (Templater, error)
+}
 
 // TODO : How to manage Go nested templates?
 // TODO : Support Go's port of the mustache template?
@@ -28,6 +43,7 @@ var (
 //
 // Registering is not thread-safe. Compilers should be registered before the http server
 // is started.
+// Compiling templates, on the other hand, is thread-safe.
 func Register(ext string, c TemplateCompiler) {
 	if c == nil {
 		panic("ghost: Register TemplateCompiler is nil")
@@ -41,6 +57,9 @@ func Register(ext string, c TemplateCompiler) {
 // Compile all templates that have a matching compiler (based on their extension) in the
 // specified directory.
 func CompileDir(dir string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
 	return filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
 		if fi == nil {
 			return ErrDirNotExist
@@ -56,8 +75,18 @@ func CompileDir(dir string) error {
 	})
 }
 
+// Compile a single template file, using the specified base directory. The base
+// directory is used to set the name of the template (the part of the path relative to this
+// base directory is used as the name of the template).
+func Compile(path, base string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	return compileTemplate(path, base)
+}
+
 // Compile the specified template file if there is a matching compiler.
-func compileTemplate(p string, base string) error {
+func compileTemplate(p, base string) error {
 	ext := path.Ext(p)
 	c, ok := compilers[ext]
 	// Ignore file if no template compiler exist for this extension
@@ -78,7 +107,9 @@ func compileTemplate(p string, base string) error {
 
 // Execute the template.
 func Execute(tplName string, w io.Writer, data interface{}) error {
+	mu.RLock()
 	t, ok := templaters[tplName]
+	mu.RUnlock()
 	if !ok {
 		return ErrTemplateNotExist
 	}
@@ -95,15 +126,4 @@ func Render(tplName string, w http.ResponseWriter, data interface{}) (err error)
 		}
 	}()
 	return Execute(tplName, w, data)
-}
-
-// Defines the interface that the template compiler must return. The Go native
-// templates implement this interface.
-type Templater interface {
-	Execute(wr io.Writer, data interface{}) error
-}
-
-// The interface that a template engine must implement to be used by Ghost.
-type TemplateCompiler interface {
-	Compile(fileName string) (Templater, error)
 }

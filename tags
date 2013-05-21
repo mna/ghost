@@ -17,6 +17,7 @@ Clear	handlers/redisstore.go	/^func (this *RedisStore) Clear() error {$/;"	f
 Clear	handlers/sstore.go	/^func (this *MemoryStore) Clear() error {$/;"	f
 Compile	templates/amber/amber.go	/^func (this *AmberCompiler) Compile(f string) (templates.Templater, error) {$/;"	f
 Compile	templates/gotpl/gotpl.go	/^func (this *GoTemplateCompiler) Compile(f string) (templates.Templater, error) {$/;"	f
+Compile	templates/template.go	/^func Compile(path, base string) error {$/;"	f
 CompileDir	templates/template.go	/^func CompileDir(dir string) error {$/;"	f
 Context	handlers/ghost.go	/^func (this *ghostWriter) Context() map[interface{}]interface{} {$/;"	f
 ContextHandler	handlers/context.go	/^func ContextHandler(h http.Handler, cap int) http.HandlerFunc {$/;"	f
@@ -141,7 +142,7 @@ buf	handlers/chain_test.go	/^	var buf bytes.Buffer$/;"	v
 buf	handlers/favicon.go	/^	var buf []byte$/;"	v
 chainHandler	handlers/chain.go	/^type chainHandler struct {$/;"	t
 ckSessId	handlers/session.go	/^		var ckSessId string$/;"	v
-compileTemplate	templates/template.go	/^func compileTemplate(p string, base string) error {$/;"	f
+compileTemplate	templates/template.go	/^func compileTemplate(p, base string) error {$/;"	f
 contextResponseWriter	handlers/context.go	/^type contextResponseWriter struct {$/;"	t
 defaultFilter	handlers/gzip.go	/^func defaultFilter(w http.ResponseWriter, r *http.Request) bool {$/;"	f
 doRequest	handlers/session_test.go	/^func doRequest(u string, newJar bool) *http.Response {$/;"	f
