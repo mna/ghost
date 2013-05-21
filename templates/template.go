@@ -46,7 +46,7 @@ func CompileDir(dir string) error {
 			return ErrDirNotExist
 		}
 		if !fi.IsDir() {
-			err = compileTemplate(path)
+			err = compileTemplate(path, dir)
 			if err != nil {
 				ghost.LogFn("ghost.templates : error compiling template %s : %s", path, err)
 				return err
@@ -57,7 +57,7 @@ func CompileDir(dir string) error {
 }
 
 // Compile the specified template file if there is a matching compiler.
-func compileTemplate(p string) error {
+func compileTemplate(p string, base string) error {
 	ext := path.Ext(p)
 	c, ok := compilers[ext]
 	// Ignore file if no template compiler exist for this extension
@@ -66,8 +66,12 @@ func compileTemplate(p string) error {
 		if err != nil {
 			return err
 		}
-		ghost.LogFn("ghost : storing template for file %s", p)
-		templaters[p] = t
+		key, err := filepath.Rel(base, p)
+		if err != nil {
+			return err
+		}
+		ghost.LogFn("ghost.templates : storing template for file %s", key)
+		templaters[key] = t
 	}
 	return nil
 }
