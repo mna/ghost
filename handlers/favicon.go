@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"crypto/md5"
-	"github.com/PuerkitoBio/ghost"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/PuerkitoBio/ghost"
 )
 
 // FaviconHandlerFunc is the same as FaviconHandler, it is just a convenience
