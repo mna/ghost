@@ -26,7 +26,7 @@ func FaviconHandler(h http.Handler, path string, maxAge time.Duration) http.Hand
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		if r.URL.Path == "/favicon.ico" {
+		if r.URL.Path == "favicon.ico" {
 			if buf == nil {
 				// Read from file and cache
 				ghost.LogFn("ghost.favicon : serving from %s", path)
