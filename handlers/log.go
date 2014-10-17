@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/ghost"
@@ -123,6 +124,21 @@ func LogHandler(h http.Handler, opts *LogOptions) http.HandlerFunc {
 	}
 }
 
+func getIpAddress(r *http.Request) string {
+	hdr := r.Header
+	hdrRealIp := hdr.Get("X-Real-Ip")
+	hdrForwardedFor := hdr.Get("X-Forwarded-For")
+	if hdrRealIp == "" && hdrForwardedFor == "" {
+		return r.RemoteAddr
+	}
+	if hdrForwardedFor != "" {
+		// X-Forwarded-For is potentially a list of addresses separated with ","
+		part := strings.Split(hdrForwardedFor, ",")[0]
+		return strings.TrimSpace(part) + ":0"
+	}
+	return hdrRealIp
+}
+
 // Check if the specified token is a predefined one, and if so return its current value.
 func getPredefinedTokenValue(t string, w *statusResponseWriter, r *http.Request,
 	st time.Time, opts *LogOptions) (interface{}, bool) {
@@ -133,7 +149,7 @@ func getPredefinedTokenValue(t string, w *statusResponseWriter, r *http.Request,
 	case "response-time":
 		return time.Now().Sub(st).Seconds(), true
 	case "remote-addr":
-		return r.RemoteAddr, true
+		return getIpAddress(r), true
 	case "date":
 		return time.Now().Format(opts.DateFormat), true
 	case "method":
