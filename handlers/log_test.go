@@ -127,6 +127,41 @@ func testLogCase(tc testCase, t *testing.T) {
 	assertTrue(tc.rx.MatchString(ac), fmt.Sprintf("expected log to match '%s', got '%s'", tc.rx.String(), ac), t)
 }
 
+func TestForwardedFor(t *testing.T) {
+        rx := regexp.MustCompile(`^1\.1\.1\.1:0 - - \[\d{4}-\d{2}-\d{2}\] "GET / HTTP/1\.1" 200  "http://www\.test\.com" "Go \d+\.\d+ package http"\n$`)
+
+	buf := bytes.NewBuffer(nil)
+	log.SetOutput(buf)
+	opts := NewLogOptions(log.Printf, Ldefault)
+	opts.DateFormat = "2006-01-02"
+
+	h := LogHandler(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(100 * time.Millisecond)
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(200)
+			w.Write([]byte("body"))
+		}), opts)
+
+	s := httptest.NewServer(h)
+	defer s.Close()
+	t.Logf("running ForwardedFor...", )
+	req, err := http.NewRequest("GET", s.URL, nil)
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Set("Referer", "http://www.test.com")
+	req.Header.Set("X-Forwarded-For", "1.1.1.1")
+	req.Header.Set("Accept-Encoding", "gzip")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	assertStatus(http.StatusOK, res.StatusCode, t)
+	ac := buf.String()
+	assertTrue(rx.MatchString(ac), fmt.Sprintf("expected log to match '%s', got '%s'", rx.String(), ac), t)
+}
+
 func TestImmediate(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	log.SetFlags(0)
