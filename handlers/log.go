@@ -133,12 +133,8 @@ func getIpAddress(r *http.Request) string {
 	}
 	if hdrForwardedFor != "" {
 		// X-Forwarded-For is potentially a list of addresses separated with ","
-		parts := strings.Split(hdrForwardedFor, ",")
-		for i, p := range parts {
-			parts[i] = strings.TrimSpace(p)
-		}
-
-                return strings.Join([]string{parts[0], ":0"}, "")
+		part := strings.Split(hdrForwardedFor, ",")[0]
+                return strings.TrimSpace(part) + ":0"
 	}
 	return hdrRealIp
 }
