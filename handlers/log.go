@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
-        "strings"
 
 	"github.com/PuerkitoBio/ghost"
 )
@@ -134,7 +134,7 @@ func getIpAddress(r *http.Request) string {
 	if hdrForwardedFor != "" {
 		// X-Forwarded-For is potentially a list of addresses separated with ","
 		part := strings.Split(hdrForwardedFor, ",")[0]
-                return strings.TrimSpace(part) + ":0"
+		return strings.TrimSpace(part) + ":0"
 	}
 	return hdrRealIp
 }

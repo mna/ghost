@@ -128,7 +128,7 @@ func testLogCase(tc testCase, t *testing.T) {
 }
 
 func TestForwardedFor(t *testing.T) {
-        rx := regexp.MustCompile(`^1\.1\.1\.1:0 - - \[\d{4}-\d{2}-\d{2}\] "GET / HTTP/1\.1" 200  "http://www\.test\.com" "Go \d+\.\d+ package http"\n$`)
+	rx := regexp.MustCompile(`^1\.1\.1\.1:0 - - \[\d{4}-\d{2}-\d{2}\] "GET / HTTP/1\.1" 200  "http://www\.test\.com" "Go \d+\.\d+ package http"\n$`)
 
 	buf := bytes.NewBuffer(nil)
 	log.SetOutput(buf)
@@ -145,7 +145,7 @@ func TestForwardedFor(t *testing.T) {
 
 	s := httptest.NewServer(h)
 	defer s.Close()
-	t.Logf("running ForwardedFor...", )
+	t.Logf("running ForwardedFor...")
 	req, err := http.NewRequest("GET", s.URL, nil)
 	if err != nil {
 		panic(err)
