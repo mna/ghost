@@ -10,7 +10,7 @@ It stays close to the metal, not abstracting Go's standard library away. As a ma
 
 [API reference][godoc]
 
-*Status* : Still under development, things will change.
+*Status* : **Unmaintained**
 
 ## Example
 
